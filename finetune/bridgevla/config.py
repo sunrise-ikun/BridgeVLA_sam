@@ -17,8 +17,11 @@ _C.train_iter = 16 * 10000
 _C.use_scheduler = True
 _C.wandb_project = "bridgevla_sam"
 # base name for the W&B run; final run/folder name is
-#   f"{wandb_run}_bs{bs * world_size}_{MM_DD_HH_MM}"
+#   f"{wandb_run}_{MM_DD_HH_MM}"
 _C.wandb_run = "bridgevla"
+# checkpoint save period (in epochs). 0 disables periodic saving.
+# When >0, save every N epochs (skipping epoch 0) and always save the final epoch.
+_C.save_every_n_epochs = 10
 # root directory for train logs; final path is
 #   f"{log_dir}/train/{run_name}/"
 _C.log_dir = "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs"

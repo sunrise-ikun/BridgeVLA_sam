@@ -2,8 +2,9 @@ exp_id: debug
 tasks: close_jar
 bs: 4
 num_workers: 3
-epochs: 10
-train_iter: 160000
+epochs: 2       #10
+train_iter: 12800    #160000
+save_every_n_epochs: 2   # >0: save every N epochs (skip epoch 0) + final epoch; 0: disable saving
 sample_distribution_mode: task_uniform
 wandb_project: "bridgevla_sam"
 wandb_run: "test"

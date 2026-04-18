@@ -126,9 +126,8 @@ def get_time():
 
 
 def build_run_name(exp_cfg, world_size):
-    """Final run/folder name: f"{wandb_run}_bs{bs*world_size}_{MM_DD_HH_MM}"."""
-    effective_bs = int(exp_cfg.bs) * int(world_size)
-    return f"{exp_cfg.wandb_run}_bs{effective_bs}_{get_time()}"
+    """Final run/folder name: f"{wandb_run}_{MM_DD_HH_MM}"."""
+    return f"{exp_cfg.wandb_run}_{get_time()}"
 
 
 def get_logdir(cmd_args, exp_cfg, dist, run_name):
@@ -413,8 +412,10 @@ def experiment(cmd_args):
 
         out = train(agent, train_dataset, TRAINING_ITERATIONS,epoch=i,rank=dist.get_rank())
 
-        if dist.get_rank()==0 and (i %10==0 or i == end_epoch-1):
-            # TODO: add logic to only save some models
+        save_every = int(getattr(exp_cfg, "save_every_n_epochs", 10))
+        is_periodic_save = save_every > 0 and i > 0 and (i % save_every == 0)
+        is_final_save = save_every > 0 and i == end_epoch - 1
+        if dist.get_rank() == 0 and (is_periodic_save or is_final_save):
             save_agent(agent, f"{log_dir}/model_{i}.pth", i)
             save_agent(agent, f"{log_dir}/model_last.pth", i)
         i += 1
