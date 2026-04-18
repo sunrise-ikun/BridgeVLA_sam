@@ -125,15 +125,18 @@ def get_time():
     return folder_name
 
 
-def get_logdir(cmd_args, exp_cfg,dist):
-    log_dir = os.path.join(cmd_args.log_dir,"train" ,exp_cfg.exp_id,cmd_args.exp_note)
-    if cmd_args.debug==True:
-        log_dir = os.path.join(log_dir,"debug")
+def build_run_name(exp_cfg, world_size):
+    """Final run/folder name: f"{wandb_run}_bs{bs*world_size}_{MM_DD_HH_MM}"."""
+    effective_bs = int(exp_cfg.bs) * int(world_size)
+    return f"{exp_cfg.wandb_run}_bs{effective_bs}_{get_time()}"
 
-    if dist.get_rank() == 0:
-        os.makedirs(log_dir, exist_ok=True)
-    trial_time=get_time()
-    log_dir = os.path.join(log_dir,f"{trial_time}")
+
+def get_logdir(cmd_args, exp_cfg, dist, run_name):
+    # cmd_args.log_dir overrides cfg if explicitly provided
+    root = cmd_args.log_dir if cmd_args.log_dir else exp_cfg.log_dir
+    log_dir = os.path.join(root, "train", run_name)
+    if cmd_args.debug:
+        log_dir = os.path.join(log_dir, "debug")
     if dist.get_rank() == 0:
         os.makedirs(log_dir, exist_ok=True)
     return log_dir
@@ -248,7 +251,16 @@ def experiment(cmd_args):
     EPOCHS = cmd_args.epochs
 
     data_folder=DATA_FOLDER
-    log_dir = get_logdir(cmd_args, exp_cfg,dist)
+    # Unified run name: shared by the log folder and the W&B run.
+    # Built on rank 0 and broadcast so all ranks land in the same directory.
+    if dist.get_rank() == 0:
+        run_name = build_run_name(exp_cfg, dist.get_world_size())
+        run_name_list = [run_name]
+    else:
+        run_name_list = [None]
+    dist.broadcast_object_list(run_name_list, src=0)
+    run_name = run_name_list[0]
+    log_dir = get_logdir(cmd_args, exp_cfg, dist, run_name)
     tasks = get_tasks(exp_cfg)
     if dist.get_rank() == 0:
         print("Training on {} tasks: {}".format(len(tasks), tasks))
@@ -377,7 +389,7 @@ def experiment(cmd_args):
     global USE_WANDB
     if dist.get_rank() == 0:
         wandb_project = exp_cfg.wandb_project
-        run_name = f"{old_exp_cfg_exp_id}_{get_time()}"
+        # Reuse the unified run name (same as log_dir basename) for W&B
         try:
             wandb.login()
             wandb.init(

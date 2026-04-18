@@ -16,6 +16,12 @@ _C.sample_distribution_mode = 'transition_uniform'
 _C.train_iter = 16 * 10000
 _C.use_scheduler = True
 _C.wandb_project = "bridgevla_sam"
+# base name for the W&B run; final run/folder name is
+#   f"{wandb_run}_bs{bs * world_size}_{MM_DD_HH_MM}"
+_C.wandb_run = "bridgevla"
+# root directory for train logs; final path is
+#   f"{log_dir}/train/{run_name}/"
+_C.log_dir = "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs"
 # arguments present in both peract and rvt
 # some of them donot support every possible combination in peract
 _C.peract = CN()

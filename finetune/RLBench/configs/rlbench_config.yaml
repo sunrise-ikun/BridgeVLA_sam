@@ -6,6 +6,8 @@ epochs: 10
 train_iter: 160000
 sample_distribution_mode: task_uniform
 wandb_project: "bridgevla_sam"
+wandb_run: "test"
+log_dir: "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs"
 peract:
   lr: 8e-5 # 
   transform_augmentation_xyz: [0.125, 0.125, 0.125]
