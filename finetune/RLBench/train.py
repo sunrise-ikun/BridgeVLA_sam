@@ -245,9 +245,12 @@ def experiment(cmd_args):
     # to match peract, iterations per epoch
     TRAINING_ITERATIONS = int(exp_cfg.train_iter // (exp_cfg.bs * dist.get_world_size()))
 
-    if exp_cfg.epochs!=cmd_args.epochs and dist.get_rank() == 0:
-        print(f"cmd args epochs != exp cfg epochs You are using {cmd_args.epochs}")
-    EPOCHS = cmd_args.epochs
+    if cmd_args.epochs is None:
+        EPOCHS = exp_cfg.epochs
+    else:
+        if exp_cfg.epochs != cmd_args.epochs and dist.get_rank() == 0:
+            print(f"cmd args epochs != exp cfg epochs You are using {cmd_args.epochs}")
+        EPOCHS = cmd_args.epochs
 
     data_folder=DATA_FOLDER
     # Unified run name: shared by the log folder and the W&B run.
@@ -439,7 +442,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_note", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="")
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--freeze_vision_tower", action="store_true")
     parser.add_argument("--load_pretrain", action="store_true")
     parser.add_argument("--pretrain_path", type=str, default=None)
