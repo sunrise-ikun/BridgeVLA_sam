@@ -5,7 +5,6 @@ finetune/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
 
 # ===== Training outputs / logs =====
 finetune/RLBench/train/
-finetune/RLBench/report/
 finetune/RLBench/wandb/
 finetune/RLBench/tea_debug.log
 finetune/Colosseum/train/
