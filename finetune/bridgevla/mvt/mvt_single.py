@@ -16,6 +16,7 @@ Therefore, the code is also under the NVIDIA Source Code License
 Author: Peiyan Li
 Email: peiyan.li@cripac.ia.ac.cn
 '''
+import os
 import torch
 from torch import nn
 from einops import rearrange
@@ -93,7 +94,9 @@ class MVT(nn.Module):
                 " prediction"
             )
 
-        print(f"MVT Vars: {vars(self)}")
+        _rank = torch.distributed.get_rank() if (torch.distributed.is_available() and torch.distributed.is_initialized()) else 0
+        if _rank == 0:
+            print(f"MVT Vars: {vars(self)}")
 
         assert not renderer is None
         self.renderer = renderer
@@ -214,7 +217,11 @@ class MVT(nn.Module):
             return all_params
 
 
-        model_id = "google/paligemma-3b-pt-224"
+        # Allow local paligemma snapshot via env var (avoid HF hub download)
+        model_id = os.environ.get("PALIGEMMA_PATH", "google/paligemma-3b-pt-224")
+        _rank = torch.distributed.get_rank() if (torch.distributed.is_available() and torch.distributed.is_initialized()) else 0
+        if _rank == 0:
+            print(f"[mvt_single] Loading PaliGemma from: {model_id}")
         if load_pretrain:
             assert pretrain_path is not None
 
@@ -309,6 +316,9 @@ class MVT(nn.Module):
 
 
         assert len(prompts)==len(images)
+        # Prepend one <image> token per image to each prompt to satisfy
+        # PaliGemmaProcessor's expected format and silence its inference warning.
+        prompts = [("<image>" * len(imgs)) + p for p, imgs in zip(prompts, images)]
         model_inputs = self.processor(text=prompts, images=images, return_tensors="pt",padding="longest")
         model_inputs = model_inputs.to(self.model.dtype).to(self.model.device)
         outputs = self.model(**model_inputs, output_hidden_states=True)

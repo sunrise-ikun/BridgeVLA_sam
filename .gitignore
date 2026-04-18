@@ -1,0 +1,62 @@
+# ===== Large assets / data / sim binaries =====
+data/
+finetune/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04/
+finetune/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+
+# ===== Training outputs / logs =====
+finetune/RLBench/train/
+finetune/RLBench/report/
+finetune/RLBench/wandb/
+finetune/RLBench/tea_debug.log
+finetune/Colosseum/train/
+finetune/Colosseum/wandb/
+finetune/GemBench/train/
+finetune/GemBench/wandb/
+wandb/
+*.log
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ===== Checkpoints / weights =====
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# ===== Native build artifacts (PyRep / point_renderer / YARR etc.) =====
+*.so
+*.o
+*.a
+*.dylib
+*.dll
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+
+# ===== Local scratch / notes =====
+finetune/RLBench/issue.txt
+finetune/RLBench/tea_debug.log
+*.tmp
+tmp/
+scratch/
+
+# ===== Editors / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+finetune/bridgevla/libs/PyRep/
+finetune/bridgevla/libs/RLBench/

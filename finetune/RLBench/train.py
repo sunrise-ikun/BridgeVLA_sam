@@ -48,6 +48,8 @@ from utils.peract_utils_rlbench import (
     TRAIN_REPLAY_STORAGE_DIR,
 )
 
+USE_WANDB = False
+
 def train(agent, dataset, training_iterations,epoch,rank=0):
     agent.train()
     log = defaultdict(list)
@@ -77,10 +79,10 @@ def train(agent, dataset, training_iterations,epoch,rank=0):
         dist.barrier()
         if rank == 0:
             step=epoch*training_iterations+iteration
-            wandb.log(
-                    out,
-                    step=step,
-                )
+            if USE_WANDB:
+                wandb.log(out, step=step)
+            if step % 100 == 0:
+                print(f"  step {step}, loss keys: {list(out.keys())}", flush=True)
     return log
 
 def save_agent(agent, path, epoch):
@@ -154,8 +156,11 @@ def dump_log(exp_cfg, mvt_cfg, cmd_args, log_dir):
 
 def setup_distributed(backend="nccl", port=None):
     """Initialize distributed training environment.
-    support both slurm and torch.distributed.launch
-    see torch.distributed.init_process_group() for more details
+
+    Supports three launch modes (auto-detected in order):
+      1. SLURM  — srun sets SLURM_JOB_ID / SLURM_PROCID / SLURM_NTASKS
+      2. torchrun / MLP / PAI — sets RANK, WORLD_SIZE, LOCAL_RANK, MASTER_ADDR
+      3. DEBUG  — single-GPU fallback when DEBUG=true
     """
     num_gpus = torch.cuda.device_count()
 
@@ -164,31 +169,36 @@ def setup_distributed(backend="nccl", port=None):
         world_size = int(os.environ["SLURM_NTASKS"])
         node_list = os.environ["SLURM_NODELIST"]
         addr = subprocess.getoutput(f"scontrol show hostname {node_list} | head -n1")
-        # specify master port
         if port is not None:
             os.environ["MASTER_PORT"] = str(port)
         elif "MASTER_PORT" not in os.environ:
-            # os.environ["MASTER_PORT"] = "29566"
             os.environ["MASTER_PORT"] = str(29567 + num_gpus)
         if "MASTER_ADDR" not in os.environ:
             os.environ["MASTER_ADDR"] = addr
         os.environ["WORLD_SIZE"] = str(world_size)
         os.environ["LOCAL_RANK"] = str(rank % num_gpus)
         os.environ["RANK"] = str(rank)
+    elif "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+    elif os.getenv("DEBUG", "false").lower() == "true":
+        print("Cannot find RANK and WORLD_SIZE — entering single-GPU debug mode")
+        os.environ.setdefault("RANK", "0")
+        os.environ.setdefault("WORLD_SIZE", "1")
+        os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
+        os.environ.setdefault("MASTER_PORT", "9001")
+        os.environ.setdefault("LOCAL_RANK", "0")
+        rank = 0
+        world_size = 1
     else:
-        if os.getenv('DEBUG', 'false').lower() == 'true':
-            print("Can not find RANK and WORLD_SIZE, Debug Mode")
-            os.environ["RANK"] = "0"
-            os.environ["WORLD_SIZE"] = "1"
-            os.environ["MASTER_ADDR"] = "127.0.0.1"
-            os.environ["MASTER_PORT"] = "9001"
-            os.environ["LOCAL_RANK"] = "0"
-            rank = int(os.environ["RANK"])
-            world_size = int(os.environ["WORLD_SIZE"])
-        else:
-            rank = int(os.environ["RANK"])
-            world_size = int(os.environ["WORLD_SIZE"])
-    
+        raise RuntimeError(
+            "Distributed env vars not found. "
+            "Launch with torchrun / srun, or set DEBUG=true for single-GPU mode."
+        )
+
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+
     dist.init_process_group(
         backend=backend,
         world_size=world_size,
@@ -210,9 +220,10 @@ def experiment(cmd_args):
         exp_cfg.merge_from_list(cmd_args.exp_cfg_opts.split(" "))
 
     ddp = int(os.environ['WORLD_SIZE']) > 1
-    print(f"Total devices: {dist.get_world_size()}")
-    if ddp:
-        print(f"Running DDP on rank {dist.get_rank()}.")
+    if dist.get_rank() == 0:
+        print(f"Total devices: {dist.get_world_size()}")
+        if ddp:
+            print(f"Running DDP (world_size={dist.get_world_size()}).")
 
     old_exp_cfg_peract_lr = exp_cfg.peract.lr
     old_exp_cfg_exp_id = exp_cfg.exp_id
@@ -232,31 +243,62 @@ def experiment(cmd_args):
     # to match peract, iterations per epoch
     TRAINING_ITERATIONS = int(exp_cfg.train_iter // (exp_cfg.bs * dist.get_world_size()))
 
-    if exp_cfg.epochs!=cmd_args.epochs:
+    if exp_cfg.epochs!=cmd_args.epochs and dist.get_rank() == 0:
         print(f"cmd args epochs != exp cfg epochs You are using {cmd_args.epochs}")
     EPOCHS = cmd_args.epochs
 
-    data_folder=DATA_FOLDER        
+    data_folder=DATA_FOLDER
     log_dir = get_logdir(cmd_args, exp_cfg,dist)
     tasks = get_tasks(exp_cfg)
-    print("Training on {} tasks: {}".format(len(tasks), tasks))
+    if dist.get_rank() == 0:
+        print("Training on {} tasks: {}".format(len(tasks), tasks))
     t_start = time.time()
-    get_dataset_func = lambda: get_dataset(
-        tasks,
-        BATCH_SIZE_TRAIN,
-        None,
-        TRAIN_REPLAY_STORAGE_DIR,
-        None,
-        data_folder,
-        NUM_TRAIN,
-        None,
-        cmd_args.refresh_replay,
-        device_id,
-        num_workers=exp_cfg.num_workers,
-        only_train=True,
-        sample_distribution_mode=exp_cfg.sample_distribution_mode,
-    )
-    train_dataset, _ = get_dataset_func()
+
+    # Replay buffer build: rank 0 builds (with optional refresh), others poll a
+    # flag file until rank 0 finishes.  This avoids NCCL barrier timeouts when
+    # building takes a long time.
+    os.makedirs(TRAIN_REPLAY_STORAGE_DIR, exist_ok=True)
+    replay_flag = os.path.join(TRAIN_REPLAY_STORAGE_DIR, ".replay_ready")
+    if dist.get_rank() == 0:
+        if os.path.exists(replay_flag):
+            os.remove(replay_flag)
+        get_dataset(
+            tasks, BATCH_SIZE_TRAIN, None, TRAIN_REPLAY_STORAGE_DIR, None,
+            data_folder, NUM_TRAIN, None,
+            cmd_args.refresh_replay, device_id,
+            num_workers=exp_cfg.num_workers, only_train=True,
+            sample_distribution_mode=exp_cfg.sample_distribution_mode,
+        )
+        with open(replay_flag, "w") as f:
+            f.write("ready")
+        print("Rank 0: replay buffer ready.", flush=True)
+    else:
+        print(f"Rank {dist.get_rank()}: waiting for rank 0 to build replay ...", flush=True)
+        while not os.path.exists(replay_flag):
+            time.sleep(5)
+        print(f"Rank {dist.get_rank()}: replay flag detected, loading ...", flush=True)
+
+    # All non-zero ranks load from the completed replay on disk.
+    if dist.get_rank() != 0:
+        train_dataset, _ = get_dataset(
+            tasks, BATCH_SIZE_TRAIN, None, TRAIN_REPLAY_STORAGE_DIR, None,
+            data_folder, NUM_TRAIN, None,
+            False, device_id,
+            num_workers=exp_cfg.num_workers, only_train=True,
+            sample_distribution_mode=exp_cfg.sample_distribution_mode,
+        )
+    else:
+        # Rank 0 already has train_dataset from the build call above.
+        # Re-load to get a fresh iterator (the build call consumed it).
+        train_dataset, _ = get_dataset(
+            tasks, BATCH_SIZE_TRAIN, None, TRAIN_REPLAY_STORAGE_DIR, None,
+            data_folder, NUM_TRAIN, None,
+            False, device_id,
+            num_workers=exp_cfg.num_workers, only_train=True,
+            sample_distribution_mode=exp_cfg.sample_distribution_mode,
+        )
+
+    dist.barrier()
     t_end = time.time()
     if local_rank== 0:
         print("Created Dataset. Time Cost: {} minutes".format((t_end - t_start) / 60.0))
@@ -300,7 +342,8 @@ def experiment(cmd_args):
     freeze_names=["lm_head","embed_tokens"]
     if cmd_args.freeze_vision_tower:
         freeze_names.append("vision_tower")
-        print("Freeze vision tower")
+        if dist.get_rank() == 0:
+            print("Freeze vision tower")
 
     for name, module in agent._network.named_modules():
         for freeze_name in freeze_names:
@@ -311,7 +354,8 @@ def experiment(cmd_args):
     
     total_params = sum(p.numel() for p in agent._network.parameters() if p.requires_grad)
     total_params_billion = total_params / 1e9  
-    print(f'Total trainable parameters: {total_params_billion:.2f} billion')
+    if dist.get_rank() == 0:
+        print(f'Total trainable parameters: {total_params_billion:.2f} billion')
 
 
     agent.build(training=True, device=device_id)
@@ -330,14 +374,24 @@ def experiment(cmd_args):
         exp_cfg.exp_id = temp2
         exp_cfg.freeze()
     # Initialize Logging =>> W&B
+    global USE_WANDB
     if dist.get_rank() == 0:
-        wandb.login(key="")
-        if  cmd_args.debug:
-            wandb.init(entity="", project="", name=os.path.dirname(log_dir),mode="")
-        else:
-            wandb.init(entity="", project="", name=os.path.dirname(log_dir))
+        wandb_project = exp_cfg.wandb_project
+        run_name = f"{old_exp_cfg_exp_id}_{get_time()}"
+        try:
+            wandb.login()
+            wandb.init(
+                project=wandb_project,
+                name=run_name,
+                mode="offline" if cmd_args.debug else "online",
+            )
+            USE_WANDB = True
+            print(f"[Info] W&B enabled, project={wandb_project}, run={run_name}")
+        except Exception as e:
+            print(f"[Info] W&B init failed ({e}), training continues without W&B")
 
-    print("Start training ...", flush=True)
+    if dist.get_rank() == 0:
+        print("Start training ...", flush=True)
     i = start_epoch
     while True:
         if i == end_epoch:

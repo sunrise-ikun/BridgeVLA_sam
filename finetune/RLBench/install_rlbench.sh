@@ -1,27 +1,73 @@
+#!/usr/bin/env bash
+set -e
+
+# =======================================================================
+# Adapted for current workspace:
+#   BRIDGEVLA_ROOT = /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam
+#   CoppeliaSim is already extracted under finetune/
+#   PyRep / RLBench need to be cloned into finetune/bridgevla/libs
+# =======================================================================
+
+BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
+FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
+LIBS_DIR="${FINETUNE_DIR}/bridgevla/libs"
+
+# --- 配置清华 PyPI 镜像源 ---
+pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+export PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+
 pip install wheel ninja pyyaml
-cd /PATH_TO_BRIDGEVLA/finetune/bridgevla/libs
-git clone https://github.com/buttomnutstoast/RLBench.git
-cd RLBench
-git checkout 587a6a0e6dc8cd36612a208724eb275fe8cb4470
-cd ..
-git clone https://github.com/stepjam/PyRep.git
-cd PyRep
-git checkout 231a1ac6b0a179cff53c1d403d379260b9f05f2f
-cd  /PATH_TO_BRIDGEVLA/finetune
-wget https://www.coppeliarobotics.com/files/V4_1_0/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz;
-export COPPELIASIM_ROOT=$(pwd)/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04 
+
+# --- Clone RLBench / PyRep into bridgevla/libs (skip if already present) ---
+mkdir -p "${LIBS_DIR}"
+cd "${LIBS_DIR}"
+if [ ! -d "RLBench" ]; then
+    git clone https://github.com/buttomnutstoast/RLBench.git
+    cd RLBench
+    git checkout 587a6a0e6dc8cd36612a208724eb275fe8cb4470
+    cd ..
+fi
+if [ ! -d "PyRep" ]; then
+    git clone https://github.com/stepjam/PyRep.git
+    cd PyRep
+    git checkout 231a1ac6b0a179cff53c1d403d379260b9f05f2f
+    cd ..
+fi
+
+# --- CoppeliaSim (already extracted under finetune/) ---
+cd "${FINETUNE_DIR}"
+COPP_TAR="CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz"
+if [ ! -d "CoppeliaSim_Edu_V4_1_0_Ubuntu20_04" ]; then
+    if [ ! -f "${COPP_TAR}" ]; then
+        echo "[Info] ${COPP_TAR} 未找到，开始下载..."
+        wget https://www.coppeliarobotics.com/files/V4_1_0/${COPP_TAR}
+    else
+        echo "[Info] 检测到已下载的 ${COPP_TAR}，跳过下载"
+    fi
+    echo "[Info] 解压 ${COPP_TAR} ..."
+    tar -xf "${COPP_TAR}"
+else
+    echo "[Info] CoppeliaSim 已解压，跳过下载与解压"
+fi
+export COPPELIASIM_ROOT="${FINETUNE_DIR}/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04"
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
 export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
 export DISPLAY=:1.0
 pip3 install pip==25.0.1
 pip3 install setuptools==76.1.0
-pip3 install open3d
+# --ignore-installed blinker: 绕过系统 apt 装的 distutils 版 blinker 1.4 无法被 pip 卸载的问题
+pip3 install --ignore-installed blinker open3d
 
-cd  /PATH_TO_BRIDGEVLA/finetune
+cd "${FINETUNE_DIR}"
 pip install -e .
 pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu121 #
-pip install torchaudio==2.5.1 torchvision==0.20.1
+# 必须从 cu121 索引装 torchvision/torchaudio，默认 PyPI 是 cu124 构建，会与 torch 2.5.1+cu121 冲突
+pip install --force-reinstall --no-deps \
+    torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cu121
 pip install 'accelerate>=0.26.0'
 pip3 install transformers==4.51.3
 pip install git+https://github.com/openai/CLIP.git

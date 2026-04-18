@@ -15,6 +15,7 @@ _C.num_workers = 0
 _C.sample_distribution_mode = 'transition_uniform'
 _C.train_iter = 16 * 10000
 _C.use_scheduler = True
+_C.wandb_project = "bridgevla_sam"
 # arguments present in both peract and rvt
 # some of them donot support every possible combination in peract
 _C.peract = CN()
