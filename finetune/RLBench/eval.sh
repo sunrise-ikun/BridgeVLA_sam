@@ -4,7 +4,7 @@ set -e
 # =======================================================================
 # Paths (absolute; edit here if you move data)
 # =======================================================================
-BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
+BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
 # Model & data

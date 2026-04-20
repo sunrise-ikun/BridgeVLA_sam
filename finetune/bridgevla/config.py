@@ -24,7 +24,7 @@ _C.wandb_run = "bridgevla"
 _C.save_every_n_epochs = 10
 # root directory for train logs; final path is
 #   f"{log_dir}/train/{run_name}/"
-_C.log_dir = "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs"
+_C.log_dir = "/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/logs"
 # arguments present in both peract and rvt
 # some of them donot support every possible combination in peract
 _C.peract = CN()

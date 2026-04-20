@@ -8,7 +8,7 @@ set -e
 #   PyRep / RLBench need to be cloned into finetune/bridgevla/libs
 # =======================================================================
 
-BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
+BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 LIBS_DIR="${FINETUNE_DIR}/bridgevla/libs"
 

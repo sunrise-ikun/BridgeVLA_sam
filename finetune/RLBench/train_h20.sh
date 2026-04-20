@@ -10,6 +10,8 @@ export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
+export RLBENCH_DATA_FOLDER="/robot/robot-research-exp-0/user/lpy/data/RLBench"
+export RLBENCH_REPLAY_STORAGE_DIR="${BRIDGEVLA_ROOT}/data/bridgevla_data/replay_train"
 
 # CoppeliaSim / Qt
 export COPPELIASIM_ROOT="${FINETUNE_DIR}/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04"
