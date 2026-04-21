@@ -349,23 +349,24 @@ def experiment(cmd_args):
         scene_bounds=SCENE_BOUNDS,
         cameras=CAMERAS,
         log_dir=f"{log_dir}/test_run/",
+        warmup_steps=int(getattr(exp_cfg, "warmup_steps", 2000)),
         **exp_cfg.peract,
         **exp_cfg.rvt,
     )
 
-    freeze_names=["lm_head","embed_tokens"]
-    if cmd_args.freeze_vision_tower:
-        freeze_names.append("vision_tower")
-        if dist.get_rank() == 0:
-            print("Freeze vision tower")
+    # ---- Stage 1 freeze: PaliGemma frozen, SAM3 frozen (in its __init__) ----
+    # Always freeze lm_head and embed_tokens (never trained)
+    always_freeze = ["lm_head", "embed_tokens"]
+    # Stage 1 additionally freezes the PaliGemma backbone (mvt1.model)
+    FREEZE_EPOCHS = int(getattr(exp_cfg, "freeze_epochs", 5))
+    for name, param in agent._network.named_parameters():
+        # SAM3 encoder is already frozen (requires_grad=False in __init__)
+        # Freeze PaliGemma model for Stage 1
+        if "mvt1.model" in name:
+            param.requires_grad = False
+    if dist.get_rank() == 0:
+        print(f"[Stage 1] Frozen PaliGemma + SAM3. Training fusion/up0/heads for {FREEZE_EPOCHS} epochs.")
 
-    for name, module in agent._network.named_modules():
-        for freeze_name in freeze_names:
-            if freeze_name in name:
-                for param in module.parameters():
-                    param.requires_grad = False
-                break
-    
     total_params = sum(p.numel() for p in agent._network.parameters() if p.requires_grad)
     total_params_billion = total_params / 1e9  
     if dist.get_rank() == 0:
@@ -410,6 +411,21 @@ def experiment(cmd_args):
     while True:
         if i == end_epoch:
             break
+
+        # ---- Stage 2 transition: unfreeze PaliGemma backbone ----
+        if i == FREEZE_EPOCHS:
+            for name, param in agent._network.named_parameters():
+                if "mvt1.model" in name:
+                    # Unfreeze PaliGemma except lm_head / embed_tokens
+                    if any(af in name for af in always_freeze):
+                        param.requires_grad = False
+                    else:
+                        param.requires_grad = True
+                # SAM3 stays frozen (requires_grad already False)
+            agent.rebuild_optimizer()
+            total_params = sum(p.numel() for p in agent._network.parameters() if p.requires_grad)
+            if dist.get_rank() == 0:
+                print(f"[Stage 2] Unfroze PaliGemma. Trainable params: {total_params/1e9:.2f}B")
 
         print(f"Rank [{dist.get_rank()}], Epoch [{i}]: Training on train dataset")
 

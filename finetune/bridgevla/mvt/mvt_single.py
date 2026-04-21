@@ -25,6 +25,7 @@ from bridgevla.mvt.attn import (
     FixedPositionalEncoding,
 )
 from bridgevla.mvt.raft_utils import ConvexUpSample
+from bridgevla.mvt.sam3_utils import SAM3EncoderWrapper
 from PIL import Image
 
 
@@ -128,18 +129,49 @@ class MVT(nn.Module):
         # Hardcoded for vlm
         self.vlm_dim=2048  
 
+        # ---- SAM3 encoder (frozen) ----
+        sam3_ckpt = os.environ.get(
+            "SAM3_CHECKPOINT_PATH",
+            "/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_ckpt/sam3",
+        )
+        self.sam3_encoder = SAM3EncoderWrapper(
+            checkpoint_path=sam3_ckpt, input_size=self.img_size
+        )
+
+        # ---- Feature processing layers ----
+        self.sam3_dim = 256
+        self.pali_proj_dim = 768
+        self.fused_dim = self.sam3_dim + self.pali_proj_dim  # 1024
+
+        self.pali_ln = nn.LayerNorm(self.vlm_dim)
+        self.pali_proj = nn.Conv2d(self.vlm_dim, self.pali_proj_dim, kernel_size=1)
+        self.sam3_ln = nn.LayerNorm(self.sam3_dim)
+
+        # ---- Fusion transformer (self-attention) ----
+        fusion_layer = nn.TransformerEncoderLayer(
+            d_model=self.fused_dim,
+            nhead=8,
+            dim_feedforward=self.fused_dim * 4,
+            dropout=0.1,
+            batch_first=True,
+        )
+        self.fusion_transformer = nn.TransformerEncoder(
+            fusion_layer, num_layers=4
+        )
+
+        # ---- Convex upsample (now takes fused_dim) ----
         self.up0 = ConvexUpSample(
-            in_dim=self.vlm_dim,
+            in_dim=self.fused_dim,
             out_dim=1,
             up_ratio=self.img_patch_size,
         )
 
         if not self.no_feat:
             feat_fc_dim = 0
-            feat_fc_dim += self.vlm_dim
+            feat_fc_dim += self.fused_dim
             # Because we will concatenate the max-pooled image tokens and the image tokens corresponding to the waypoint later.
             if self.cvx_up:
-                feat_fc_dim += self.vlm_dim
+                feat_fc_dim += self.fused_dim
             else:
                 feat_fc_dim += self.final_dim
             
@@ -240,10 +272,12 @@ class MVT(nn.Module):
             missing_keys, unexpected_keys = self.model.load_state_dict(base_params, strict=False)
             print("Missing keys  base:", missing_keys)  # Should be an empty list
             print("Unexpected keys base:", unexpected_keys) # Should be an empty list
-            # Load parameters
-            missing_keys_up0, unexpected_keys_up0 = self.up0.load_state_dict(custom_params, strict=True)
-            print("Missing keys up0:", missing_keys_up0)  # Should be an empty list
-            print("Unexpected keys up0 :", unexpected_keys_up0) # Should be an empty list
+            # Load parameters (non-strict: up0 in_dim changed from vlm_dim to fused_dim)
+            missing_keys_up0, unexpected_keys_up0 = self.up0.load_state_dict(custom_params, strict=False)
+            print("Missing keys up0:", missing_keys_up0)
+            print("Unexpected keys up0 :", unexpected_keys_up0)
+            if missing_keys_up0 or unexpected_keys_up0:
+                print("[WARN] up0 dimensions changed (fused_dim); old up0 weights partially skipped.")
             import time
             time.sleep(5)
 
@@ -311,6 +345,7 @@ class MVT(nn.Module):
 
 
         prompts =[ text[0][0] for text in language_goal]# ["text1","text2"...]
+        prompts_raw = list(prompts)  # save raw text for SAM3 text encoder
         # print("The prompts:",prompts)
         images = [[MVT.trans_cuda_tensor_2_PIL(example)for example in examples] for examples in img]# bs,3
 
@@ -351,11 +386,8 @@ class MVT(nn.Module):
         # concat all the output
         image_tokens = torch.stack(image_tokens)
         x = rearrange(image_tokens, 'b (c h1 h2) w -> b w c h1 h2', c=self.num_img, h1=self.num_pat_img, h2=self.num_pat_img) 
-        feat = []
-        _feat = torch.max(torch.max(x, dim=-1)[0], dim=-1)[0]
-        _feat = _feat.view(bs, -1)
-        feat.append(_feat)
 
+        # Reshape to (bs*num_img, vlm_dim, 16, 16)
         x = (
             x.transpose(1, 2)
             .clone()
@@ -363,9 +395,50 @@ class MVT(nn.Module):
                 bs * self.num_img, self.vlm_dim, self.num_pat_img, self.num_pat_img
             )
         )
-        x=x.to(torch.float32)
-        
-        trans = self.up0(x)
+
+        # ========== PaliGemma feature processing ==========
+        x_pali = x.to(torch.float32)
+        x_pali = x_pali.permute(0, 2, 3, 1)            # (bs*3, 16, 16, 2048)
+        x_pali = self.pali_ln(x_pali)
+        x_pali = x_pali.permute(0, 3, 1, 2)             # (bs*3, 2048, 16, 16)
+        x_pali = self.pali_proj(x_pali)                  # (bs*3, 768, 16, 16)
+
+        # ========== SAM3 path ==========
+        # Prepare per-view images and per-view text prompts
+        # img is already RGB-only (bs, num_img, 3, h, w) in [-1,1]
+        sam3_images = img.reshape(
+            bs * self.num_img, 3, h, w
+        )  # (bs*3, 3, 224, 224)  already in [-1,1]
+        sam3_prompts = []
+        for p in prompts_raw:
+            sam3_prompts.extend([p] * self.num_img)
+
+        x_sam3 = self.sam3_encoder(sam3_images, sam3_prompts)  # (bs*3, 256, 16, 16)
+        x_sam3 = x_sam3.to(torch.float32)
+        x_sam3 = x_sam3.permute(0, 2, 3, 1)              # (bs*3, 16, 16, 256)
+        x_sam3 = self.sam3_ln(x_sam3)
+        x_sam3 = x_sam3.permute(0, 3, 1, 2)               # (bs*3, 256, 16, 16)
+
+        # ========== Fusion ==========
+        x_fused = torch.cat([x_pali, x_sam3], dim=1)      # (bs*3, 1024, 16, 16)
+        BN = x_fused.shape[0]  # bs * num_img
+        x_fused = x_fused.flatten(2).permute(0, 2, 1)     # (bs*3, 256_tokens, 1024)
+        x_fused = self.fusion_transformer(x_fused)         # (bs*3, 256_tokens, 1024)
+        x_fused = x_fused.permute(0, 2, 1).view(
+            BN, self.fused_dim, self.num_pat_img, self.num_pat_img
+        )  # (bs*3, 1024, 16, 16)
+
+        # ========== Global feature extraction (from fused output) ==========
+        x_for_feat = x_fused.view(
+            bs, self.num_img, self.fused_dim, self.num_pat_img, self.num_pat_img
+        ).permute(0, 2, 1, 3, 4)  # (bs, 1024, 3, 16, 16)
+        feat = []
+        _feat = torch.max(torch.max(x_for_feat, dim=-1)[0], dim=-1)[0]
+        _feat = _feat.view(bs, -1)
+        feat.append(_feat)
+
+        # ========== Convex upsample ==========
+        trans = self.up0(x_fused)
         trans = trans.view(bs, self.num_img, h, w)
 
 
@@ -394,10 +467,10 @@ class MVT(nn.Module):
                 wpt_img = torch.clamp(wpt_img, 0, self.img_size - 1)
 
             _wpt_img = wpt_img / self.img_patch_size
-            _u = x
+            _u = x_fused
             assert (
-                0 <= _wpt_img.min() and _wpt_img.max() <= x.shape[-1]
-            ), print(_wpt_img, x.shape)
+                0 <= _wpt_img.min() and _wpt_img.max() <= x_fused.shape[-1]
+            ), print(_wpt_img, x_fused.shape)
 
             _wpt_img = _wpt_img.unsqueeze(1)
             _feat = select_feat_from_hm(_wpt_img, _u)[0]

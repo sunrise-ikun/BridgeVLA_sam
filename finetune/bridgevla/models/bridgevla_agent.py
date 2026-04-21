@@ -407,6 +407,9 @@ class RVTAgent:
         place_with_mean: bool = True,
         transform_augmentation_rot_resolution: int = 5,
         optimizer_type: str = "lamb",
+        weight_decay: float = 0.01,
+        betas: list = [0.9, 0.95],
+        warmup_steps: int = 2000,
         gt_hm_sigma: float = 1.5,
         img_aug: bool = False,
         add_rgc_loss: bool = False,
@@ -432,6 +435,9 @@ class RVTAgent:
             transform_augmentation_rot_resolution
         )
         self._optimizer_type = optimizer_type
+        self._weight_decay = weight_decay
+        self._betas = tuple(betas)
+        self._warmup_steps = warmup_steps
         self.gt_hm_sigma = gt_hm_sigma
         self.img_aug = img_aug
         self.add_rgc_loss = add_rgc_loss
@@ -456,13 +462,37 @@ class RVTAgent:
     def build(self, training: bool, device: torch.device = None):
         self._training = training
         self._device = device
-        params_to_optimize = filter(lambda p: p.requires_grad, self._network.parameters())
+        self._build_optimizer()
+        self._global_step = 0
 
-        self._optimizer = torch.optim.Adam(
-            params_to_optimize,
-            lr=self._lr,
-            weight_decay=self._lambda_weight_l2,
+    def _build_optimizer(self):
+        params_to_optimize = list(
+            filter(lambda p: p.requires_grad, self._network.parameters())
         )
+        if self._optimizer_type == "adamw":
+            self._optimizer = torch.optim.AdamW(
+                params_to_optimize,
+                lr=self._lr,
+                weight_decay=self._weight_decay,
+                betas=self._betas,
+            )
+        else:
+            self._optimizer = torch.optim.Adam(
+                params_to_optimize,
+                lr=self._lr,
+                weight_decay=self._lambda_weight_l2,
+            )
+
+    def rebuild_optimizer(self):
+        """Rebuild optimizer after freezing/unfreezing parameters (stage switch)."""
+        self._build_optimizer()
+        self._global_step = 0
+
+    def _get_warmup_lr_scale(self):
+        """Linear warmup: scale from 0 to 1 over warmup_steps."""
+        if self._warmup_steps <= 0:
+            return 1.0
+        return min(1.0, self._global_step / self._warmup_steps)
 
 
     def _get_one_hot_expert_actions(
@@ -768,7 +798,12 @@ class RVTAgent:
 
             self._optimizer.zero_grad(set_to_none=True)
             
-            total_loss.backward() 
+            total_loss.backward()
+            # Apply linear warmup
+            self._global_step += 1
+            lr_scale = self._get_warmup_lr_scale()
+            for pg in self._optimizer.param_groups:
+                pg["lr"] = self._lr * lr_scale
             self._optimizer.step()
 
 
@@ -977,6 +1012,11 @@ class RVTAgent:
             self._optimizer.zero_grad(set_to_none=True)
             
             total_loss.backward()
+            # Apply linear warmup
+            self._global_step += 1
+            lr_scale = self._get_warmup_lr_scale()
+            for pg in self._optimizer.param_groups:
+                pg["lr"] = self._lr * lr_scale
             self._optimizer.step()
 
             loss_log = {

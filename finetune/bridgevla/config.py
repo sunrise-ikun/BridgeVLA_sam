@@ -33,6 +33,8 @@ _C.peract.lambda_weight_l2 = 1e-6
 # effective lr is multiplied by bs * num_devices
 _C.peract.lr = 2.5e-5
 _C.peract.optimizer_type =  "adam" # "lamb"
+_C.peract.weight_decay = 0.01
+_C.peract.betas = [0.9, 0.95]
 _C.peract.add_rgc_loss = True
 _C.peract.num_rotation_classes = 72
 _C.peract.transform_augmentation = True
@@ -40,6 +42,10 @@ _C.peract.transform_augmentation_xyz = [0.1, 0.1, 0.1]
 _C.peract.transform_augmentation_rpy = [0.0, 0.0, 20.0]
 
 # arguments present in only rvt and not peract
+# Two-stage training
+_C.freeze_epochs = 5       # Stage 1: freeze backbones for this many epochs
+_C.warmup_steps = 2000     # Linear warmup steps per stage
+
 _C.rvt = CN()
 _C.rvt.gt_hm_sigma = 1.5
 _C.rvt.img_aug = 0.1
