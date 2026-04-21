@@ -63,11 +63,12 @@ pip3 install --ignore-installed blinker open3d
 
 cd "${FINETUNE_DIR}"
 pip install -e .
-pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu121 #
 # 必须从 cu121 索引装 torchvision/torchaudio，默认 PyPI 是 cu124 构建，会与 torch 2.5.1+cu121 冲突
 pip install --force-reinstall --no-deps \
     torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
     --index-url https://download.pytorch.org/whl/cu121
+# xformers 0.0.28.post3 是最后一个兼容 torch 2.5.1 的版本；必须在 torch 之后安装
+pip3 install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu121
 pip install 'accelerate>=0.26.0'
 pip3 install transformers==4.51.3
 pip install git+https://github.com/openai/CLIP.git
@@ -76,8 +77,8 @@ sudo apt-get install -y libffi-dev
 sudo apt-get install -y xvfb
 sudo apt-get install -y libfontconfig1
 sudo apt install -y libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
-sudo apt install libxcb-cursor0
-sudo apt install libxcb-xinerama0
+sudo apt install -y libxcb-cursor0
+sudo apt install -y libxcb-xinerama0
 pip install pyqt6
 pip3 install yacs
 pip3 install wandb
@@ -95,7 +96,12 @@ pip install  opencv-python-headless
 pip uninstall  -y opencv-python-headless      
 pip install  opencv-python-headless   
 
-pip install -e bridgevla/libs/PyRep 
+pip install cffi
+# setuptools>=74 的 develop 命令会强制走 PEP517 子进程，导致 cffi/cffi_build 找不到
+# 临时降级到 69.x 走 legacy develop，装完后恢复
+pip install backports.tarfile setuptools==69.5.1
+(cd bridgevla/libs/PyRep && python setup.py develop)
+pip install setuptools==76.1.0
 pip install -e bridgevla/libs/RLBench 
 pip install -e bridgevla/libs/YARR 
 pip install -e bridgevla/libs/peract_colab

@@ -34,7 +34,7 @@ fi
 
 # Cluster env vars (same pattern as mibot/scripts/train.sh)
 export MLP_WORKER_NUM=${WORLD_SIZE:-1}
-export MLP_WORKER_GPU=${RESOURCE_GPU:-1}
+export MLP_WORKER_GPU=${RESOURCE_GPU:-8}
 export MLP_ROLE_INDEX=${RANK:-0}
 export MLP_WORKER_0_HOST=${MASTER_ADDR:-localhost}
 export MLP_WORKER_0_PORT=${MASTER_PORT:-29501}
@@ -50,4 +50,5 @@ torchrun \
     --master_addr=$MLP_WORKER_0_HOST \
     --master_port=$MLP_WORKER_0_PORT \
     train.py \
+    --exp_cfg_path configs/rlbench_config_h20.yaml \
     $@
