@@ -1037,7 +1037,7 @@ class RVTAgent:
 
     @torch.no_grad()
     def act(
-        self, step: int, observation: dict,visualize=False,visualize_save_dir="", return_gembench_action=False,
+        self, step: int, observation: dict,deterministic=True,visualize=False,visualize_save_dir="", return_gembench_action=False,
     ) -> ActResult:
         language_goal =observation["language_goal"]
         obs, pcd = rlbench_utils._preprocess_inputs(observation, self.cameras)

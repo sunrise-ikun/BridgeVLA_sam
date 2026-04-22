@@ -463,6 +463,9 @@ if __name__ == "__main__":
 
     os.makedirs(args.eval_log_dir, exist_ok=True)
 
+    if not args.visualize_root_dir:
+        args.visualize_root_dir = os.path.join(args.eval_log_dir, "visualize")
+
     # save the arguments for future reference
     with open(os.path.join(args.eval_log_dir, "eval_config.yaml"), "w") as fp:
         yaml.dump(args.__dict__, fp)

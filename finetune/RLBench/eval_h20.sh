@@ -86,9 +86,11 @@ python3 eval.py \
     --model-folder    "${MODEL_FOLDER}" \
     --eval-datafolder "${EVAL_DATAFOLDER}" \
     --model-name      "${MODEL_NAME}" \
-    --tasks           "close_jar" \
+    --tasks           "place_shape_in_shape_sorter" \
     --eval-episodes   3 \
     --episode-length  25 \
     --log-name        "eval_rlbench_sam_$(date +%Y%m%d_%H%M%S)" \
     --device          0 \
-    --headless
+    --headless \
+    --visualize \
+    --save-video
