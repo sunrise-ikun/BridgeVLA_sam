@@ -2,7 +2,7 @@ exp_id: debug
 tasks: all
 bs: 8
 num_workers: 3
-epochs: 100       #10
+epochs: 100       ##10
 train_iter: 153600    #160000
 save_every_n_epochs: 2   # >0: save every N epochs (skip epoch 0) + final epoch; 0: disable saving
 sample_distribution_mode: task_uniform
