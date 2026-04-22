@@ -82,13 +82,16 @@ def save_point_cloud_with_color(filename, points, colors, keypoint=None):
 def visualize_images(
     color_tensor: torch.Tensor,  #  (3, 3, 224, 224) 
     gray_tensor: torch.Tensor,   #  (224, 224, 3) 
-    save_dir: str = "/opt/tiger/3D_OpenVLA/3d_policy/RVT/rvt_our/debug"
+    save_dir: str = "/opt/tiger/3D_OpenVLA/3d_policy/RVT/rvt_our/debug",
+    heatmap_alpha: float = 0.5,
 ) -> None:
     """
     1. original_0.png, original_1.png, original_2.png   (original image)
     2. gray_0.png, gray_1.png, gray_2.png              (gray image)
-    3. overlay_0.png, overlay_1.png, overlay_2.png     (transparent image + annotation)
+    3. overlay_0.png, overlay_1.png, overlay_2.png     (softmax heatmap overlaid on image)
     """
+    import matplotlib.cm as cm
+
     os.makedirs(save_dir, exist_ok=True)
     
     color_imgs = color_tensor.cpu().numpy().transpose(0, 2, 3, 1) 
@@ -106,27 +109,22 @@ def visualize_images(
         Image.fromarray(gray_img, mode="L").save(os.path.join(save_dir, f"gray_{i}.png"))
         
 
-        rgba = np.zeros((*original_img.shape[:2], 4), dtype=np.uint8)
-        rgba[..., :3] = original_img  
-        rgba[..., 3] = 77            
-        
-    
-        overlay_img = Image.fromarray(rgba, mode="RGBA")
-        draw = ImageDraw.Draw(overlay_img)
-        
-        
-        max_pos = np.unravel_index(gray_imgs[i].argmax(), gray_imgs[i].shape)
-        x = max_pos[1]  
-        y = max_pos[0]  
-        
-      
-        point_radius = 5
-        draw.ellipse(
-            [x-point_radius, y-point_radius, x+point_radius, y+point_radius],
-            fill=(255, 0, 0, 255)  
+        hm = gray_imgs[i].astype(np.float64)
+        hm_min, hm_max = hm.min(), hm.max()
+        if hm_max - hm_min > 1e-8:
+            hm = (hm - hm_min) / (hm_max - hm_min)
+        else:
+            hm = np.zeros_like(hm)
+        heatmap_rgba = (cm.jet(hm) * 255).astype(np.uint8)  # (H, W, 4)
+        heatmap_rgb = heatmap_rgba[..., :3]
+
+        blended = (
+            (1 - heatmap_alpha) * original_img.astype(np.float64)
+            + heatmap_alpha * heatmap_rgb.astype(np.float64)
         )
+        blended = np.clip(blended, 0, 255).astype(np.uint8)
         
-        overlay_img.save(os.path.join(save_dir, f"overlay_{i}.png"))
+        Image.fromarray(blended).save(os.path.join(save_dir, f"overlay_{i}.png"))
 
 
 def apply_channel_wise_softmax(gray_tensor):

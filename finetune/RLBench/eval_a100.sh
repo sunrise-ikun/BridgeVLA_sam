@@ -90,7 +90,7 @@ python3 eval.py \
     --eval-episodes   25 \
     --episode-length  25 \
     --log-name        "eval_rlbench_sam_$(date +%Y%m%d_%H%M%S)" \
-    --device          1 \
+    --device          0 \
     --headless \
     --visualize \
     --save-video
