@@ -5,36 +5,21 @@ conda activate bridgevla_sam
 BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
-export PYTHONPATH="${FINETUNE_DIR}:${PYTHONPATH:-}"
+export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
 export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224"
+export SAM3_CHECKPOINT_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/sam3"
+export COPPELIASIM_ROOT="${FINETUNE_DIR}/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04"
+export LD_LIBRARY_PATH="${COPPELIASIM_ROOT}:${LD_LIBRARY_PATH:-}"
+export QT_QPA_PLATFORM=offscreen
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
-export RLBENCH_DATA_FOLDER="/robot/robot-research-exp-0/user/lpy/data/RLBench"
+export RLBENCH_DATA_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/RLBench"
 export RLBENCH_REPLAY_STORAGE_DIR="${BRIDGEVLA_ROOT}/data/bridgevla_data/replay_train"
-
-# CoppeliaSim / Qt
-export COPPELIASIM_ROOT="${FINETUNE_DIR}/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:${COPPELIASIM_ROOT}"
-export QT_QPA_PLATFORM_PLUGIN_PATH="${COPPELIASIM_ROOT}"
-export QT_PLUGIN_PATH="${COPPELIASIM_ROOT}:/usr/lib/x86_64-linux-gnu/qt5/plugins"
-
-# Xvfb
-XVFB_DISPLAY=":99"
-if [ -z "${DISPLAY:-}" ] || ! xdpyinfo -display "${DISPLAY}" >/dev/null 2>&1; then
-    if xdpyinfo -display "${XVFB_DISPLAY}" >/dev/null 2>&1; then
-        echo "[Info] Reusing existing Xvfb on ${XVFB_DISPLAY}"
-    else
-        echo "[Info] Starting Xvfb on ${XVFB_DISPLAY} ..."
-        Xvfb ${XVFB_DISPLAY} -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-        sleep 2
-    fi
-    export DISPLAY="${XVFB_DISPLAY}"
-fi
 
 # Cluster env vars (same pattern as mibot/scripts/train.sh)
 export MLP_WORKER_NUM=${WORLD_SIZE:-1}
-export MLP_WORKER_GPU=${RESOURCE_GPU:-8}
+export MLP_WORKER_GPU=${RESOURCE_GPU:-2}
 export MLP_ROLE_INDEX=${RANK:-0}
 export MLP_WORKER_0_HOST=${MASTER_ADDR:-localhost}
 export MLP_WORKER_0_PORT=${MASTER_PORT:-29501}
