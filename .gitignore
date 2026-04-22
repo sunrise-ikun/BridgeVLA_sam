@@ -42,7 +42,7 @@ dist/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
-
+*.tar.gz
 # ===== Local scratch / notes =====
 finetune/RLBench/issue.txt
 finetune/RLBench/tea_debug.log

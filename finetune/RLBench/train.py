@@ -28,7 +28,7 @@ from contextlib import redirect_stdout
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-import wandb
+import swanlab
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 import bridgevla.config as exp_cfg_mod
 import bridgevla.models.bridgevla_agent as bridgevla_agent
@@ -48,7 +48,7 @@ from utils.peract_utils_rlbench import (
     TRAIN_REPLAY_STORAGE_DIR,
 )
 
-USE_WANDB = False
+USE_SWANLAB = False
 
 def train(agent, dataset, training_iterations,epoch,rank=0):
     agent.train()
@@ -79,8 +79,8 @@ def train(agent, dataset, training_iterations,epoch,rank=0):
         dist.barrier()
         if rank == 0:
             step=epoch*training_iterations+iteration
-            if USE_WANDB:
-                wandb.log(out, step=step)
+            if USE_SWANLAB:
+                swanlab.log(out, step=step)
             if step % 100 == 0:
                 print(f"  step {step}, loss keys: {list(out.keys())}", flush=True)
     return log
@@ -126,8 +126,8 @@ def get_time():
 
 
 def build_run_name(exp_cfg, world_size):
-    """Final run/folder name: f"{wandb_run}_{MM_DD_HH_MM}"."""
-    return f"{exp_cfg.wandb_run}_{get_time()}"
+    """Final run/folder name: f"{swanlab_run}_{MM_DD_HH_MM}"."""
+    return f"{exp_cfg.swanlab_run}_{get_time()}"
 
 
 def get_logdir(cmd_args, exp_cfg, dist, run_name):
@@ -388,22 +388,21 @@ def experiment(cmd_args):
         exp_cfg.peract.lr = temp1
         exp_cfg.exp_id = temp2
         exp_cfg.freeze()
-    # Initialize Logging =>> W&B
-    global USE_WANDB
+    # Initialize Logging =>> SwanLab
+    global USE_SWANLAB
     if dist.get_rank() == 0:
-        wandb_project = exp_cfg.wandb_project
-        # Reuse the unified run name (same as log_dir basename) for W&B
+        swanlab_project = exp_cfg.swanlab_project
         try:
-            wandb.login()
-            wandb.init(
-                project=wandb_project,
-                name=run_name,
-                mode="offline" if cmd_args.debug else "online",
+            swanlab.login(api_key=os.environ.get("SWANLAB_API_KEY", ""))
+            swanlab.init(
+                project=swanlab_project,
+                experiment_name=run_name,
+                mode="disabled" if cmd_args.debug else "cloud",
             )
-            USE_WANDB = True
-            print(f"[Info] W&B enabled, project={wandb_project}, run={run_name}")
+            USE_SWANLAB = True
+            print(f"[Info] SwanLab enabled, project={swanlab_project}, run={run_name}")
         except Exception as e:
-            print(f"[Info] W&B init failed ({e}), training continues without W&B")
+            print(f"[Info] SwanLab init failed ({e}), training continues without SwanLab")
 
     if dist.get_rank() == 0:
         print("Start training ...", flush=True)

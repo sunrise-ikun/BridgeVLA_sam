@@ -93,7 +93,7 @@ sudo apt install -y libxcb-cursor0
 sudo apt install -y libxcb-xinerama0
 pip install pyqt6
 pip3 install yacs
-pip3 install wandb
+pip3 install swanlab
 pip install "git+${GITHUB_MIRROR}facebookresearch/pytorch3d.git@stable"
 
 sudo apt-get update

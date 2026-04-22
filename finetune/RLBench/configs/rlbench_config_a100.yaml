@@ -11,8 +11,8 @@ sample_distribution_mode: task_uniform
 # Stage 2 (epoch freeze_epochs..epochs-1): unfreeze PaliGemma, SAM3 stays frozen
 freeze_epochs: 2
 warmup_steps: 1000       # linear warmup per stage, no LR decay
-wandb_project: "bridgevla_sam"
-wandb_run: "2task_lr5e-5_transformer"
+swanlab_project: "bridgevla_sam"
+swanlab_run: "2task_lr5e-5_transformer"
 log_dir: "/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/logs"
 peract:
   lr: 5e-5

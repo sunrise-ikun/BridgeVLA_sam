@@ -15,10 +15,10 @@ _C.num_workers = 0
 _C.sample_distribution_mode = 'transition_uniform'
 _C.train_iter = 16 * 10000
 _C.use_scheduler = True
-_C.wandb_project = "bridgevla_sam"
-# base name for the W&B run; final run/folder name is
-#   f"{wandb_run}_{MM_DD_HH_MM}"
-_C.wandb_run = "bridgevla"
+_C.swanlab_project = "bridgevla_sam"
+# base name for the SwanLab run; final run/folder name is
+#   f"{swanlab_run}_{MM_DD_HH_MM}"
+_C.swanlab_run = "bridgevla"
 # checkpoint save period (in epochs). 0 disables periodic saving.
 # When >0, save every N epochs (skipping epoch 0) and always save the final epoch.
 _C.save_every_n_epochs = 10

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-source "/root/miniconda3/etc/profile.d/conda.sh"
-conda activate bridgevla_sam
 
+source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/bridgevla_sam/bin/activate
 BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
@@ -11,9 +10,12 @@ export SAM3_CHECKPOINT_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/sam3"
 export COPPELIASIM_ROOT="${FINETUNE_DIR}/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04"
 export LD_LIBRARY_PATH="${COPPELIASIM_ROOT}:${LD_LIBRARY_PATH:-}"
 export QT_QPA_PLATFORM=offscreen
+export DATA_CACHE_ROOT="/robot/robot-rfm/.data_cache"
+export HF_HOME="/robot/robot-rfm/.hf_cache"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
+export SWANLAB_API_KEY="pRP4aOFOIGQGP468x0O8f"
 export RLBENCH_DATA_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/RLBench"
 export RLBENCH_REPLAY_STORAGE_DIR="${BRIDGEVLA_ROOT}/data/bridgevla_data/replay_train"
 

@@ -644,19 +644,18 @@ class Pretrain_RoboPoint_Palligemma:
             dataloader_num_workers=self.config["dataloader_num_workers"],         # Increase data loading threads
             dataloader_pin_memory=True,       # Enable memory pinning
             gradient_checkpointing=False,      # Activate gradient checkpointing
-            report_to=["wandb"],
+            report_to=["swanlab"],
             no_cuda=False,
             remove_unused_columns=False,
             ddp_find_unused_parameters=False
         )
 
         if accelerator.is_main_process:  
-            import wandb
-            wandb.login(key="")
-            wandb.init(
-                entity="",
+            import swanlab
+            swanlab.login(api_key=os.environ.get("SWANLAB_API_KEY", ""))
+            swanlab.init(
                 project="",
-                name=exp_name,
+                experiment_name=exp_name,
                 config=vars(args),
             )
         trainer = Trainer(

@@ -28,7 +28,7 @@ from contextlib import redirect_stdout
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-import wandb
+import swanlab
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 import bridgevla.config as exp_cfg_mod
 import bridgevla.models.bridgevla_agent as bridgevla_agent
@@ -79,7 +79,7 @@ def train(agent, dataset, training_iterations,epoch,rank=0):
         dist.barrier()
         if rank == 0:
             step=epoch*training_iterations+iteration
-            wandb.log(
+            swanlab.log(
                     out,
                     step=step,
                 )
@@ -333,13 +333,13 @@ def experiment(cmd_args):
         exp_cfg.peract.lr = temp1
         exp_cfg.exp_id = temp2
         exp_cfg.freeze()
-    # Initialize Logging =>> W&B
+    # Initialize Logging =>> SwanLab
     if dist.get_rank() == 0:
-        wandb.login(key="")
+        swanlab.login(api_key=os.environ.get("SWANLAB_API_KEY", ""))
         if  cmd_args.debug:
-            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
+            swanlab.init(project="3DVLA_RVT_opensource", experiment_name=os.path.dirname(log_dir),mode="disabled")
         else:
-            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
+            swanlab.init(project="3DVLA_RVT_opensource", experiment_name=os.path.dirname(log_dir))
 
     print("Start training ...", flush=True)
     i = start_epoch

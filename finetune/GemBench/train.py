@@ -27,7 +27,7 @@ from contextlib import redirect_stdout
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-import wandb
+import swanlab
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 
 import bridgevla.config as exp_cfg_mod
@@ -356,13 +356,13 @@ def experiment(cmd_args):
         exp_cfg.exp_id = temp2
         exp_cfg.freeze()
 
-    # Initialize Logging =>> W&B
+    # Initialize Logging =>> SwanLab
     if dist.get_rank() == 0:
-        wandb.login(key="")
+        swanlab.login(api_key=os.environ.get("SWANLAB_API_KEY", ""))
         if  cmd_args.debug:
-            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
+            swanlab.init(project="3DVLA_RVT_opensource", experiment_name=os.path.dirname(log_dir),mode="disabled")
         else:
-            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
+            swanlab.init(project="3DVLA_RVT_opensource", experiment_name=os.path.dirname(log_dir))
 
 
     print("Start training ...", flush=True)
@@ -375,7 +375,7 @@ def experiment(cmd_args):
 
         out = train(agent, train_dataloader, rank=dist.get_rank(),cameras=cmd_args.cameras)
         if rank == 0:
-            wandb.log(out,step=i)
+            swanlab.log(out,step=i)
         if dist.get_rank()==0 and (i %20==0 or i == end_epoch-1):
             # TODO: add logic to only save some models
             save_agent(agent, f"{log_dir}/model_{i}.pth", i)
