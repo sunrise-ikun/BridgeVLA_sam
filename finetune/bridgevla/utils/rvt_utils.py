@@ -7,8 +7,6 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from bridgevla.models.peract_official import PreprocessAgent2
-
 def get_pc_img_feat(obs, pcd, bounds=None):
     """
     preprocess the data in the peract to our framework
@@ -164,7 +162,11 @@ def get_eval_parser():
 
 
 def load_agent(agent_path, agent=None, only_epoch=False):
-    if isinstance(agent, PreprocessAgent2):
+    try:
+        from bridgevla.models.peract_official import PreprocessAgent2
+    except ImportError:
+        PreprocessAgent2 = None
+    if PreprocessAgent2 is not None and isinstance(agent, PreprocessAgent2):
         assert not only_epoch
         agent._pose_agent.load_weights(agent_path)
         return 0

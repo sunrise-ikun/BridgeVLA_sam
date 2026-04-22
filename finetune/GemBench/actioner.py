@@ -139,6 +139,7 @@ def load_agent(
         scene_bounds=SCENE_BOUNDS,
         cameras=CAMERAS,
         log_dir=f"{eval_log_dir}/eval_run",
+        warmup_steps=int(getattr(exp_cfg, "warmup_steps", 1000)),
         **exp_cfg.peract,
         **exp_cfg.rvt,
     )

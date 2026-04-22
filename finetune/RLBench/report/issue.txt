@@ -1,0 +1,13 @@
+❯ 诶，之前失败的原因是什么？                                                                                             
+                                                                                                                         
+● setuptools >= 76.1.0 的 develop 命令（即 pip install -e）内部会递归调用 pip install -e . --use-pep517 --no-deps，而    
+  PyRep 和 point-renderer 的 setup.py 里有 CFFI 扩展编译等非标准逻辑，在 PEP 517 模式下跑不通，导致子进程报错。          
+                                                                                                                         
+  加 --no-use-pep517 后走的是旧版 setup.py develop 路径，直接执行 setup.py 而不触发那个递归子进程，所以就成功了。        
+                                                                                                                         
+  简单说：新版 setuptools 强制走 PEP 517 构建流程，和这两个包的老式 setup.py 不兼容。                                    
+                                                                                                                         
+❯ 然后你是怎么解决的？                                                                                                   
+                       
+● 给 pip install -e 加了 --no-use-pep517 参数，强制让 pip 走旧版的 setup.py develop 路径，绕过了新版 setuptools 的 PEP   
+  517 递归调用。                

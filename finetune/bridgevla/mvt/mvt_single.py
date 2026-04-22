@@ -354,6 +354,10 @@ class MVT(nn.Module):
         # Prepend one <image> token per image to each prompt to satisfy
         # PaliGemmaProcessor's expected format and silence its inference warning.
         prompts = [("<image>" * len(imgs)) + p for p, imgs in zip(prompts, images)]
+        # NOTE: suffix is not passed, so token_type_ids and labels are absent from model_inputs.
+        # PaliGemmaForConditionalGeneration.forward() sets is_training = (token_type_ids is not None and labels is not None),
+        # which is always False here (both train and eval). This means the internal causal mask is fully zeroed out
+        # (causal_mask[:, :seq_len] = 0), i.e. full bidirectional attention for all tokens, not Prefix-LM.
         model_inputs = self.processor(text=prompts, images=images, return_tensors="pt",padding="longest")
         model_inputs = model_inputs.to(self.model.dtype).to(self.model.device)
         outputs = self.model(**model_inputs, output_hidden_states=True)

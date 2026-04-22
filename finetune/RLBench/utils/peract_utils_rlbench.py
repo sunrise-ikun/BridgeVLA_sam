@@ -1,8 +1,6 @@
 #Adapted from https://github.com/NVlabs/RVT/blob/master/rvt/utils/peract_utils.py
 import os
-from omegaconf import OmegaConf
 
-from bridgevla.models.peract_official import create_agent_our
 from peract_colab.arm.utils import stack_on_channel
 
 
@@ -42,29 +40,3 @@ def _preprocess_inputs(replay_sample, cameras):
         )  # obs contains both rgb and pointcloud (used in ARM for other baselines)
         pcds.append(pcd)  # only pointcloud
     return obs, pcds
-
-
-
-def get_official_peract(
-    cfg_path,
-    training,
-    device,
-    bs,
-):
-    """
-    Creates an official peract agent
-    :param cfg_path: path to the config file
-    :param training: whether to build the agent in training mode
-    :param device: device to build the agent on
-    :param bs: batch size, does not matter when we need a model for inference.
-    """
-    with open(cfg_path, "r") as f:
-        cfg = OmegaConf.load(f)
-
-    # we need to modify the batch size as in our case we specify batchsize per
-    # gpu
-    cfg.replay.batch_size = bs
-    agent = create_agent_our(cfg)
-    agent.build(training=training, device=device)
-
-    return agent
