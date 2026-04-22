@@ -19,8 +19,8 @@ export RLBENCH_REPLAY_STORAGE_DIR="${BRIDGEVLA_ROOT}/data/bridgevla_data/replay_
 
 # Cluster env vars (same pattern as mibot/scripts/train.sh)
 export MLP_WORKER_NUM=${WORLD_SIZE:-1}
-export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
-export MLP_WORKER_GPU=${RESOURCE_GPU:-8}
+export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-1,2,3,4,5,6,7}
+export MLP_WORKER_GPU=${RESOURCE_GPU:-7}
 export MLP_ROLE_INDEX=${RANK:-0}
 export MLP_WORKER_0_HOST=${MASTER_ADDR:-localhost}
 export MLP_WORKER_0_PORT=${MASTER_PORT:-29501}

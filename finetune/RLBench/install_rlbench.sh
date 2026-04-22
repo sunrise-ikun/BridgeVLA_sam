@@ -12,6 +12,18 @@ BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 LIBS_DIR="${FINETUNE_DIR}/bridgevla/libs"
 
+# --- 配置 GitHub 代理镜像 (全局生效，含 pip 内部触发的 git clone) ---
+# 可按需切换: https://ghfast.top/ | https://mirror.ghproxy.com/ | 留空则直连
+GITHUB_MIRROR="https://ghfast.top/https://github.com/"
+# 通过 git url rewrite 让所有 https://github.com/ 请求走镜像
+if [ -n "${GITHUB_MIRROR}" ]; then
+    git config --global url."${GITHUB_MIRROR}".insteadOf "https://github.com/"
+fi
+
+# --- 配置 PyTorch 国内镜像 (上海交大) ---
+# 备选: https://mirrors.aliyun.com/pytorch-wheels/cu121
+TORCH_INDEX_URL="https://mirror.sjtu.edu.cn/pytorch-wheels/cu121"
+
 # --- 配置清华 PyPI 镜像源 ---
 pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
 pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
@@ -25,13 +37,13 @@ pip install wheel ninja pyyaml
 mkdir -p "${LIBS_DIR}"
 cd "${LIBS_DIR}"
 if [ ! -d "RLBench" ]; then
-    git clone https://github.com/buttomnutstoast/RLBench.git
+    git clone ${GITHUB_MIRROR}buttomnutstoast/RLBench.git
     cd RLBench
     git checkout 587a6a0e6dc8cd36612a208724eb275fe8cb4470
     cd ..
 fi
 if [ ! -d "PyRep" ]; then
-    git clone https://github.com/stepjam/PyRep.git
+    git clone ${GITHUB_MIRROR}stepjam/PyRep.git
     cd PyRep
     git checkout 231a1ac6b0a179cff53c1d403d379260b9f05f2f
     cd ..
@@ -66,12 +78,12 @@ pip install -e .
 # 必须从 cu121 索引装 torchvision/torchaudio，默认 PyPI 是 cu124 构建，会与 torch 2.5.1+cu121 冲突
 pip install --force-reinstall --no-deps \
     torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
-    --index-url https://download.pytorch.org/whl/cu121
+    --index-url ${TORCH_INDEX_URL}
 # xformers 0.0.28.post3 是最后一个兼容 torch 2.5.1 的版本；必须在 torch 之后安装
-pip3 install xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/cu121
+pip3 install xformers==0.0.28.post3 --index-url ${TORCH_INDEX_URL}
 pip install 'accelerate>=0.26.0'
 pip3 install transformers==4.51.3
-pip install git+https://github.com/openai/CLIP.git
+pip install git+${GITHUB_MIRROR}openai/CLIP.git
 sudo apt-get update
 sudo apt-get install -y libffi-dev
 sudo apt-get install -y xvfb
@@ -82,7 +94,7 @@ sudo apt install -y libxcb-xinerama0
 pip install pyqt6
 pip3 install yacs
 pip3 install wandb
-pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable'
+pip install "git+${GITHUB_MIRROR}facebookresearch/pytorch3d.git@stable"
 
 sudo apt-get update
 sudo apt-get install -y  libxcb-xinput0  libx11-xcb1 libxcb1 libxcb-render0 libxcb-shm0 libxcb-xfixes0 libxcb-shape0 libxcb-randr0 libxcb-image0 libxcb-keysyms1 libxcb-icccm4 libxcb-sync1 libxcb-xinerama0 libxcb-util1

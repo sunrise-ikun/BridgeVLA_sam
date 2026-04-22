@@ -8,8 +8,8 @@ BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
 # Model & data
-MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/checkpoints/RLBench"
-MODEL_NAME="model_80.pth"                # checkpoint file inside MODEL_FOLDER
+MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train/2task_lr5e-5_transformer_04_21_20_18"
+MODEL_NAME="model_26.pth"                # checkpoint file inside MODEL_FOLDER
 EVAL_DATAFOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/RLBench"
 
 # PaliGemma base weights (picked up by bridgevla/mvt/mvt_single.py via env var)
