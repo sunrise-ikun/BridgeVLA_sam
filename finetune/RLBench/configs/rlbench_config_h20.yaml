@@ -2,7 +2,7 @@ exp_id: debug
 tasks: all
 bs: 8
 num_workers: 3
-epochs: 40       #10
+epochs: 100       #10
 train_iter: 153600    #160000
 save_every_n_epochs: 2   # >0: save every N epochs (skip epoch 0) + final epoch; 0: disable saving
 sample_distribution_mode: task_uniform
@@ -12,7 +12,7 @@ sample_distribution_mode: task_uniform
 freeze_epochs: 2
 warmup_steps: 1000       # linear warmup per stage, no LR decay
 swanlab_project: "bridgevla_sam"
-swanlab_run: "18task_lr8e-5_transformer"
+swanlab_run: "18task_lr8e-5_layer4_head8"
 log_dir: "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs"
 peract:
   lr: 8e-5
