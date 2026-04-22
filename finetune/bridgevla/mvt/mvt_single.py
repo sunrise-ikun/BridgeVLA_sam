@@ -360,6 +360,8 @@ class MVT(nn.Module):
         # (causal_mask[:, :seq_len] = 0), i.e. full bidirectional attention for all tokens, not Prefix-LM.
         model_inputs = self.processor(text=prompts, images=images, return_tensors="pt",padding="longest")
         model_inputs = model_inputs.to(self.model.dtype).to(self.model.device)
+        # The real attention_mask (0 for padding) is passed as-is; PaliGemma's _update_causal_mask
+        # unconditionally applies it to set padding positions to min_dtype, so padding tokens are masked out.
         outputs = self.model(**model_inputs, output_hidden_states=True)
 
         hidden_states = outputs.hidden_states  
