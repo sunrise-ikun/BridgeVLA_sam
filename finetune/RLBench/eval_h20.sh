@@ -11,7 +11,7 @@ FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
 # Model & data
 MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train/18task_lr8e-5_layer4_head8_04_22_23_41"
-MODEL_NAME="model_60.pth"                # checkpoint file inside MODEL_FOLDER
+MODEL_NAME="model_40.pth"                # checkpoint file inside MODEL_FOLDER
 EVAL_DATAFOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/RLBench"
 
 # PaliGemma base weights (picked up by bridgevla/mvt/mvt_single.py via env var)
@@ -91,7 +91,7 @@ python3 eval.py \
     --model-name      "${MODEL_NAME}" \
     --tasks           "all" \
     --eval-episodes   25 \
-    --episode-length  25 \
+    --episode-length  40 \
     --log-name        "eval_rlbench_sam_$(date +%Y%m%d_%H%M%S)" \
     --device          1 \
     --headless 
