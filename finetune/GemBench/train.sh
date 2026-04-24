@@ -38,6 +38,5 @@ torchrun \
     train.py \
     --exp_cfg_path configs/gembench_config.yaml \
     --data_folder "${GEMBENCH_DATA_FOLDER}" \
-    --debug \
-    --tasks "push_button+0" \
+    --tasks "open_door+0" "open_drawer+0" "open_drawer+2" "close_jar_peract+15" "close_jar_peract+16" \
     $@

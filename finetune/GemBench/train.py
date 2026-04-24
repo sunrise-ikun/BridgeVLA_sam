@@ -101,7 +101,7 @@ def train(agent, data_loader, epoch, cameras=["front", "left_shoulder", "right_s
             epoch_losses[key].append(out[key])
 
         step = epoch * len(data_loader) + iteration
-        if rank == 0 and USE_SWANLAB and step % 100 == 0:
+        if rank == 0 and USE_SWANLAB and step % 10 == 0:
             swanlab.log(out, step=step)
 
     if rank == 0:

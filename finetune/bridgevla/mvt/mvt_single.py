@@ -411,10 +411,11 @@ class MVT(nn.Module):
 
         # ========== SAM3 path ==========
         # Prepare per-view images and per-view text prompts
-        # img is already RGB-only (bs, num_img, 3, h, w) in [-1,1]
+        # img is RGB-only (bs, num_img, 3, h, w) in [0,1] after renderer;
+        # SAM3 ViT expects [-1,1] (Normalize mean=0.5, std=0.5), so rescale here.
         sam3_images = img.reshape(
             bs * self.num_img, 3, h, w
-        )  # (bs*3, 3, 224, 224)  already in [-1,1]
+        ) * 2.0 - 1.0  # (bs*3, 3, 224, 224)  [0,1] → [-1,1]
         sam3_prompts = []
         for p in prompts_raw:
             sam3_prompts.extend([p] * self.num_img)
