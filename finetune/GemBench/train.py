@@ -68,7 +68,7 @@ def create_dataloader(dataset, rank, world_size, batch_size, num_workers):
     return dataloader
 
 
-def train(agent, data_loader, epoch, cameras=["front", "left_shoulder", "right_shoulder", "wrist"], rank=0):
+def train(agent, data_loader, epoch, cameras=["front", "left_shoulder", "right_shoulder", "wrist"], rank=0, debug_dir=None):
     agent.train()
 
     def move_tensors_to_device(d, device):
@@ -90,6 +90,9 @@ def train(agent, data_loader, epoch, cameras=["front", "left_shoulder", "right_s
             "backprop": True,
             "reset_log": (iteration == 0),
         }
+        if debug_dir is not None and iteration <= 100:
+            update_args["debug_dir"] = debug_dir
+            update_args["debug_step"] = epoch * len(data_loader) + iteration
         out = agent.update_gembench(**update_args)
 
         if epoch_losses == {}:
@@ -137,7 +140,7 @@ def build_run_name(exp_cfg, world_size):
 
 def get_logdir(cmd_args, exp_cfg, dist, run_name):
     root = cmd_args.log_dir if cmd_args.log_dir else exp_cfg.log_dir
-    log_dir = os.path.join(root, "train", run_name)
+    log_dir = os.path.join(root, "train_gembench", run_name)
     if cmd_args.debug:
         log_dir = os.path.join(log_dir, "debug")
     if dist.get_rank() == 0:
@@ -265,6 +268,7 @@ def experiment(cmd_args):
         device=device_id,
         cameras=cmd_args.cameras,
         ep_per_task=cmd_args.ep_per_task,
+        tasks=cmd_args.tasks,
     )
     if local_rank == 0:
         print("Total tasks:", train_dataset.num_tasks)
@@ -366,6 +370,10 @@ def experiment(cmd_args):
     if dist.get_rank() == 0:
         print("Start training ...", flush=True)
 
+    debug_vis_dir = None
+    if cmd_args.debug and dist.get_rank() == 0:
+        debug_vis_dir = os.path.join(log_dir, "vis")
+
     i = start_epoch
     while True:
         if i == end_epoch:
@@ -386,7 +394,11 @@ def experiment(cmd_args):
 
         print(f"Rank [{dist.get_rank()}], Epoch [{i}]: Training on train dataset")
 
-        out = train(agent, train_dataloader, epoch=i, rank=dist.get_rank(), cameras=cmd_args.cameras)
+        train_dataloader.sampler.set_epoch(i)
+        _epoch_debug_dir = None
+        if debug_vis_dir is not None:
+            _epoch_debug_dir = os.path.join(debug_vis_dir, f"epoch_{i}")
+        out = train(agent, train_dataloader, epoch=i, rank=dist.get_rank(), cameras=cmd_args.cameras, debug_dir=_epoch_debug_dir)
 
         if dist.get_rank() == 0 and USE_SWANLAB:
             swanlab.log({f"epoch_{k}": v for k, v in out.items()}, step=i)
@@ -421,6 +433,13 @@ if __name__ == "__main__":
     parser.add_argument("--freeze_vision_tower", action="store_true")
     parser.add_argument("--load_pretrain", action="store_true")
     parser.add_argument("--pretrain_path", type=str, default=None)
+    parser.add_argument(
+        "--tasks",
+        type=str,
+        nargs="+",
+        default=None,
+        help="List of task names to train on. If None, use all tasks."
+    )
     parser.add_argument(
         "--cameras",
         type=str,

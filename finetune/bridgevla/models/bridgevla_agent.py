@@ -829,6 +829,8 @@ class RVTAgent:
         backprop: bool = True,
         reset_log: bool = False,
         cameras=["front", "left_shoulder", "right_shoulder", "wrist"],
+        debug_dir=None,
+        debug_step=0,
     ) -> dict:
         action_ignore_collisions = replay_sample["ignore_collisions"].unsqueeze(1).int()  # (b, 1) of int
         action_gripper_pose = replay_sample["gripper_pose"]  # (b, 8)  
@@ -949,6 +951,9 @@ class RVTAgent:
             rot_x_y=rot_x_y if self.rot_ver == 1 else None,
             language_goal=replay_sample["lang_goal"]  
         )
+
+        if debug_dir is not None:
+            self._save_debug_views(out, wpt_local, debug_dir, step_id=debug_step)
         
         q_trans, rot_q, grip_q, collision_q, y_q, pts = self.get_q(
             out, dims=(bs, nc, h, w)
@@ -1031,6 +1036,56 @@ class RVTAgent:
             return_out.update(loss_log)
 
         return return_out
+
+
+    def _save_debug_views(self, out, wpt_local, debug_dir, step_id, sample_idx=0):
+        """Save debug: Row1 = rendered top/front/right RGB, Row2 = same with GT waypoint overlay."""
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        os.makedirs(debug_dir, exist_ok=True)
+
+        # RGB channels are 3:6 when add_corr is True (corr=0:3, rgb=3:6)
+        rendered_img = out["mvt1_ori_img"]  # (bs, num_img, C, H, W)
+        rgb = rendered_img[sample_idx, :, 3:6].cpu().float()  # (num_img, 3, H, W)
+
+        with torch.no_grad():
+            wpt_img = self._net_mod.get_pt_loc_on_img(
+                wpt_local.unsqueeze(1), mvt1_or_mvt2=True, dyn_cam_info=None, out=None
+            )  # (bs, 1, num_img, 2)
+
+        num_views = rgb.shape[0]
+        view_names = ["top", "front", "right"][:num_views]
+
+        rgb_np = rgb.numpy().transpose(0, 2, 3, 1)  # (num_img, H, W, 3)
+        rgb_np = np.clip(rgb_np, 0, 1)
+        wpt_xy = wpt_img[sample_idx, 0].cpu().numpy()  # (num_img, 2)
+
+        fig, axes = plt.subplots(2, num_views, figsize=(4 * num_views, 8))
+        for v in range(num_views):
+            # Row 1: plain rendered view
+            axes[0, v].imshow(rgb_np[v])
+            axes[0, v].set_title(view_names[v])
+            axes[0, v].axis("off")
+
+            # Row 2: view + GT next-step waypoint
+            axes[1, v].imshow(rgb_np[v])
+            x, y = float(wpt_xy[v, 0]), float(wpt_xy[v, 1])
+            axes[1, v].plot(
+                x, y, "o", color="red", markersize=10,
+                markeredgewidth=2, markeredgecolor="yellow",
+            )
+            axes[1, v].set_title(f"{view_names[v]} + GT")
+            axes[1, v].axis("off")
+
+        plt.suptitle(f"Step {step_id}", fontsize=14)
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(debug_dir, f"step_{step_id:06d}.png"),
+            dpi=150, bbox_inches="tight",
+        )
+        plt.close(fig)
 
 
     @torch.no_grad()

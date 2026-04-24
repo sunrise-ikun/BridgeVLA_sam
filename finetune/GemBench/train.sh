@@ -38,4 +38,6 @@ torchrun \
     train.py \
     --exp_cfg_path configs/gembench_config.yaml \
     --data_folder "${GEMBENCH_DATA_FOLDER}" \
+    --debug \
+    --tasks "push_button+0" \
     $@

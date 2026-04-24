@@ -33,11 +33,13 @@ class Gembench_Dataset(torch.utils.data.Dataset):
                 device,
                 cameras=["front", "left_shoulder", "right_shoulder", "wrist"],
                 ep_per_task=1000,
+                tasks=None,
             ):
         self.device = device
         self.data_path = data_path ## folder will .pkl data files one for each example
         self.train_data = []
         self.cameras=cameras
+        self.tasks = tasks
         time.sleep(5)
         self.construct_dataset(ep_per_task)
 
@@ -49,7 +51,10 @@ class Gembench_Dataset(torch.utils.data.Dataset):
         episode_path = os.path.join(self.data_path, "keysteps_bbox/seed0")
         self.num_tasks=len(os.listdir(episode_path))
         self.num_task_paths=0
-        for task in tqdm(os.listdir(episode_path)):
+        all_tasks = os.listdir(episode_path)
+        if self.tasks is not None:
+            all_tasks = [t for t in all_tasks if t in self.tasks]
+        for task in tqdm(all_tasks):
             task_path = os.path.join(episode_path, task)
             task_all_episode = lmdb.open(
                 task_path,
@@ -87,8 +92,8 @@ class Gembench_Dataset(torch.utils.data.Dataset):
         return len(self.train_data)
 
     def __getitem__(self, idx):
-        sample=self.train_data[idx]
-        sample["lang_goal"] = random.choice(sample["lang_goal"])   # randomly choose one instruction for every fetching. This is important for generalization.
+        sample=self.train_data[idx].copy()
+        sample["lang_goal"] = random.choice(self.train_data[idx]["lang_goal"])   # randomly choose one instruction for every fetching. This is important for generalization.
         return sample
     
 if __name__ == "__main__":
