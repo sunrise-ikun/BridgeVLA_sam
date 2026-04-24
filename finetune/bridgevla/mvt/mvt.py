@@ -328,7 +328,7 @@ class MVT(nn.Module):
                     stdv = self.img_aug_2 * torch.rand(1, device=x.device)
                     # values in [-stdv, stdv]
                     noise = stdv * ((2 * torch.rand(*x.shape, device=x.device)) - 1)
-                    x = x + noise
+                    x = x + noise #这里似乎有bug，tensor重绑定了？【
            
             img = self.render(
                 pc=pc,

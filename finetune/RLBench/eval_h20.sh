@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
+source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/bridgevla_sam/bin/activate
+
 # =======================================================================
 # Paths (absolute; edit here if you move data)
 # =======================================================================
-BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
+BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
 # Model & data
-MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train/2task_lr5e-5_transformer_04_21_20_18"
-MODEL_NAME="model_26.pth"                # checkpoint file inside MODEL_FOLDER
+MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train/18task_lr8e-5_layer4_head8_04_22_23_41"
+MODEL_NAME="model_60.pth"                # checkpoint file inside MODEL_FOLDER
 EVAL_DATAFOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/RLBench"
 
 # PaliGemma base weights (picked up by bridgevla/mvt/mvt_single.py via env var)
 export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224"
+export SAM3_CHECKPOINT_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/sam3"
 
 # Keep HF offline to avoid accidental network fetches (optional, comment out if undesired)
 export HF_HUB_OFFLINE=1
@@ -23,7 +26,7 @@ export TRANSFORMERS_OFFLINE=1
 # PYTHONPATH: finetune/ must be on the path so that
 #   "import RLBench.utils.peract_utils_rlbench" resolves correctly.
 # =======================================================================
-export PYTHONPATH="${FINETUNE_DIR}:${PYTHONPATH:-}"
+export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
 
 # =======================================================================
 # CoppeliaSim / Qt / display
@@ -86,11 +89,12 @@ python3 eval.py \
     --model-folder    "${MODEL_FOLDER}" \
     --eval-datafolder "${EVAL_DATAFOLDER}" \
     --model-name      "${MODEL_NAME}" \
-    --tasks           "place_shape_in_shape_sorter" \
-    --eval-episodes   3 \
+    --tasks           "all" \
+    --eval-episodes   25 \
     --episode-length  25 \
     --log-name        "eval_rlbench_sam_$(date +%Y%m%d_%H%M%S)" \
-    --device          0 \
-    --headless \
-    --visualize \
-    --save-video
+    --device          1 \
+    --headless 
+    #\
+    #--visualize \
+    #--save-video
