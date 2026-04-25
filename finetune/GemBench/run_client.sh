@@ -29,11 +29,25 @@ export TOKENIZERS_PARALLELISM=false
 
 [ -d "${MICROSTEP_DATA_DIR}" ] || { echo "[Error] MICROSTEP_DATA_DIR missing: ${MICROSTEP_DATA_DIR}"; echo "[Hint] Extract ${GEMBENCH_ROOT}/test_dataset/microsteps.tar.gz under ${GEMBENCH_ROOT}/test_dataset first."; exit 1; }
 
+RECORD_VIDEO="${RECORD_VIDEO:-1}"
+VIDEO_ROTATE_CAM="${VIDEO_ROTATE_CAM:-1}"
+VIDEO_RES_W="${VIDEO_RES_W:-320}"
+VIDEO_RES_H="${VIDEO_RES_H:-180}"
+VISUALIZE="${VISUALIZE:-1}"
+VISUALIZE_ROOT_DIR="${VISUALIZE_ROOT_DIR:-${OUTPUT_ROOT}/model_${MODEL_EPOCH}/seed${SEED}/visualize}"
+
+EXTRA_ARGS=()
+[ "${RECORD_VIDEO}" = "1" ] && EXTRA_ARGS+=(--record_video --video_resolution_width "${VIDEO_RES_W}" --video_resolution_height "${VIDEO_RES_H}")
+[ "${VIDEO_ROTATE_CAM}" = "1" ] && EXTRA_ARGS+=(--video_rotate_cam)
+[ "${VISUALIZE}" = "1" ] && EXTRA_ARGS+=(--visualize --visualize_root_dir "${VISUALIZE_ROOT_DIR}")
+
 echo "[Info] SERVER       = http://${IP}:${PORT}"
 echo "[Info] MODEL_EPOCH  = ${MODEL_EPOCH}"
 echo "[Info] SEED         = ${SEED}"
 echo "[Info] MICROSTEPS   = ${MICROSTEP_DATA_DIR}"
 echo "[Info] OUTPUT_ROOT  = ${OUTPUT_ROOT}"
+echo "[Info] RECORD_VIDEO = ${RECORD_VIDEO} (${VIDEO_RES_W}x${VIDEO_RES_H}, rotate=${VIDEO_ROTATE_CAM})"
+echo "[Info] VISUALIZE    = ${VISUALIZE} (${VISUALIZE_ROOT_DIR})"
 
 cd "${FINETUNE_DIR}/GemBench"
 
@@ -45,13 +59,13 @@ TASKVARS[test_l4]="put_items_in_drawer+0 put_items_in_drawer+2 put_items_in_draw
 
 for split in train test_l2 test_l3 test_l4; do
     for taskvar in ${TASKVARS[$split]}; do
-            xvfb-run -a python3 client.py \
-                        --ip "${IP}" \
-                                    --port "${PORT}" \
-                                                --output_file "${OUTPUT_ROOT}/model_${MODEL_EPOCH}/seed${SEED}/${split}/result.json" \
-                                                            --microstep_data_dir "${MICROSTEP_DATA_DIR}" \
-                                                                        --taskvar "${taskvar}"
-                                                                            done
-                                                                            done
+        xvfb-run -a python3 client.py \
+            --ip "${IP}" \
+            --port "${PORT}" \
+            --output_file "${OUTPUT_ROOT}/model_${MODEL_EPOCH}/seed${SEED}/${split}/result.json" \
+            --microstep_data_dir "${MICROSTEP_DATA_DIR}" \
+            --taskvar "${taskvar}" \
+            "${EXTRA_ARGS[@]}"
+    done
+done
 
-                                                                            

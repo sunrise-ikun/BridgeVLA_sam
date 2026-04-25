@@ -50,13 +50,16 @@ class MyActioner(object):
             use_input_place_with_mean=False,
         )
     
-    def predict(self, taskvar, episode_id, step_id, instruction, obs_state_dict):
+    def predict(self, taskvar, episode_id, step_id, instruction, obs_state_dict,
+                visualize=False, visualize_episode_dir=""):
         '''Args:
             taskvar: str, 'task+variation'
             episode_id: int
             step_id: int, [0, 25]
             instruction: str
-            obs_state_dict: observations from genrobo3d.rlbench.environments.RLBenchEnv 
+            obs_state_dict: observations from genrobo3d.rlbench.environments.RLBenchEnv
+            visualize: bool, if True save rendered views / heatmaps / point cloud
+            visualize_episode_dir: per-episode save root; per-step subdir is appended inside agent.act
         '''
         # obs_state_dict["lang_goal_tokens"] = clip.tokenize(instruction).to(self.agent._device)
         # import pdb;
@@ -80,7 +83,13 @@ class MyActioner(object):
                 obs_state_dict[k] = v.to(self.agent._device)    
             obs_state_dict[k] = obs_state_dict[k].unsqueeze(0)
         obs_state_dict["language_goal"] =   [[[instruction]]]
-        action = self.agent.act(step=step_id,observation=obs_state_dict,return_gembench_action=True)
+        action = self.agent.act(
+            step=step_id,
+            observation=obs_state_dict,
+            visualize=visualize,
+            visualize_save_dir=visualize_episode_dir,
+            return_gembench_action=True,
+        )
         return action
     
 

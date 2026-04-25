@@ -1088,6 +1088,43 @@ class RVTAgent:
         plt.close(fig)
 
 
+    def _save_pred_views(self, out, pred_wpt_local, save_dir, step_id, sample_idx=0):
+        """Save Row1=rendered top/front/right RGB, Row2=same with predicted waypoint overlay."""
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        rendered_img = out["mvt1_ori_img"]
+        rgb = rendered_img[sample_idx, :, 3:6].cpu().float()
+
+        with torch.no_grad():
+            wpt_img = self._net_mod.get_pt_loc_on_img(
+                pred_wpt_local[sample_idx:sample_idx + 1].unsqueeze(1),
+                mvt1_or_mvt2=True, dyn_cam_info=None, out=None,
+            )
+
+        num_views = rgb.shape[0]
+        view_names = ["top", "front", "right"][:num_views]
+        rgb_np = np.clip(rgb.numpy().transpose(0, 2, 3, 1), 0, 1)
+        wpt_xy = wpt_img[0, 0].cpu().numpy()
+
+        fig, axes = plt.subplots(2, num_views, figsize=(4 * num_views, 8))
+        for v in range(num_views):
+            axes[0, v].imshow(rgb_np[v]); axes[0, v].set_title(view_names[v]); axes[0, v].axis("off")
+            axes[1, v].imshow(rgb_np[v])
+            x, y = float(wpt_xy[v, 0]), float(wpt_xy[v, 1])
+            axes[1, v].plot(x, y, "o", color="red", markersize=10,
+                            markeredgewidth=2, markeredgecolor="yellow")
+            axes[1, v].set_title(f"{view_names[v]} + pred"); axes[1, v].axis("off")
+        plt.suptitle(f"Step {step_id}", fontsize=14)
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, f"pred_views_{step_id:06d}.png"),
+                    dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+
     @torch.no_grad()
     def act(
         self, step: int, observation: dict,deterministic=True,visualize=False,visualize_save_dir="", return_gembench_action=False,
@@ -1155,6 +1192,9 @@ class RVTAgent:
             visualize_images(mvt1_img,q_trans_1,save_dir=os.path.join(save_dir,"mvt1"))
             visualize_images(mvt2_img,q_trans_2,save_dir=os.path.join(save_dir,"mvt2"))
             save_point_cloud_with_color(os.path.join(save_dir,"point_cloud.ply"), pc_ori.cpu().numpy(), img_feat_ori.cpu().numpy(), pred_wpt[0].cpu().numpy())
+            with torch.no_grad():
+                pred_wpt_local_viz = self._net_mod.get_wpt(out, True, dyn_cam_info, y_q)
+            self._save_pred_views(out, pred_wpt_local_viz, save_dir=save_dir, step_id=int(step))
         continuous_action = np.concatenate(
             (
                 pred_wpt[0].cpu().numpy(),

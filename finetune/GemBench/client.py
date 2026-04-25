@@ -37,16 +37,24 @@ import warnings
 warnings.filterwarnings("ignore", message="Object .* has ObjectType.LIGHT.*")
 
 
-def main(taskvar, server_addr, microstep_data_dir='',output_file=None,record_video=False,video_rotate_cam=False,video_resolution_width=320,video_resolution_height=180):
+def main(taskvar, server_addr, microstep_data_dir='',output_file=None,record_video=False,video_rotate_cam=False,video_resolution_width=320,video_resolution_height=180,
+         visualize=False, visualize_root_dir=""):
     NUM_EPISODES = 25
     MAX_STEPS = 25
     IMAGE_SIZE = 256
-    
+
     task_str, variation_id = taskvar.split('+')
     variation_id = int(variation_id)
 
     if output_file is not None:
         os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+
+    if visualize:
+        assert visualize_root_dir, "--visualize requires --visualize_root_dir"
+        taskvar_viz_dir = os.path.join(visualize_root_dir, taskvar)
+        os.makedirs(taskvar_viz_dir, exist_ok=True)
+    else:
+        taskvar_viz_dir = ""
 
     episode_id = 0
     step_id = 0
@@ -126,6 +134,12 @@ def main(taskvar, server_addr, microstep_data_dir='',output_file=None,record_vid
         obs_state_dict = env.get_observation(obs)
         move.reset(obs_state_dict['gripper'])
 
+        if visualize:
+            episode_viz_dir = os.path.join(taskvar_viz_dir, f"episode_{episode_id}")
+            os.makedirs(episode_viz_dir, exist_ok=True)
+        else:
+            episode_viz_dir = ""
+
         for step_id in range(MAX_STEPS):
             batch = {
                 'taskvar': taskvar,
@@ -133,6 +147,8 @@ def main(taskvar, server_addr, microstep_data_dir='',output_file=None,record_vid
                 'step_id': step_id,
                 'instruction': instruction,
                 'obs_state_dict': obs_state_dict,
+                'visualize': visualize,
+                'visualize_episode_dir': episode_viz_dir,
             }
 
             data = msgpack_numpy.packb(batch, use_bin_type=True)
@@ -183,6 +199,23 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=13003)
     parser.add_argument('--output_file', type=str, default="PATH_TO_SAVE_RESULT_JSON/result.json")
     parser.add_argument('--microstep_data_dir', default='/PATH_TO_GEMBENCH_TEST_DATA/microsteps/seed300')
+    parser.add_argument('--record_video', action='store_true', help='Record mp4 video of each episode')
+    parser.add_argument('--video_rotate_cam', action='store_true', help='Rotating cinematic camera')
+    parser.add_argument('--video_resolution_width', type=int, default=320)
+    parser.add_argument('--video_resolution_height', type=int, default=180)
+    parser.add_argument('--visualize', action='store_true', help='Save per-step rendered views, heatmaps, pred-waypoint overlay, and point cloud')
+    parser.add_argument('--visualize_root_dir', type=str, default="", help='Root dir for visualize outputs (required if --visualize)')
     args = parser.parse_args()
     server_addr = f"http://{args.ip}:{args.port}/"
-    main(args.taskvar, server_addr, args.microstep_data_dir, args.output_file, record_video=False)
+    main(
+        args.taskvar,
+        server_addr,
+        args.microstep_data_dir,
+        args.output_file,
+        record_video=args.record_video,
+        video_rotate_cam=args.video_rotate_cam,
+        video_resolution_width=args.video_resolution_width,
+        video_resolution_height=args.video_resolution_height,
+        visualize=args.visualize,
+        visualize_root_dir=args.visualize_root_dir,
+    )
