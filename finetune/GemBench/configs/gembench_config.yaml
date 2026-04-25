@@ -3,18 +3,18 @@ tasks: all
 bs: 4
 num_workers: 3
 epochs: 100
-save_every_n_epochs: 20
+save_every_n_epochs: 5
 sample_distribution_mode: transition_uniform
 # --- Two-stage training ---
 # Stage 1 (epoch 0..freeze_epochs-1): freeze SAM3 encoder + PaliGemma, train fusion/up0/heads
 # Stage 2 (epoch freeze_epochs..epochs-1): unfreeze PaliGemma, SAM3 stays frozen
-freeze_epochs: 2
+freeze_epochs: 4
 warmup_steps: 1000
 swanlab_project: "bridgevla_sam_gembench"
 swanlab_run: "gembench_lr8e-5"
 log_dir: "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs"
 peract:
-  lr: 8e-5
+  lr: 5e-5
   optimizer_type: "adamw"
   weight_decay: 0.01
   betas: [0.9, 0.95]
