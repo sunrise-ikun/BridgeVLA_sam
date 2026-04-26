@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/bridgevla_sam/bin/activate
-BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
+source /home/zyz/miniconda3/envs/bridgevla_pretrain/bin/activate
+BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 PRETRAIN_DIR="${BRIDGEVLA_ROOT}/pretrain"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
@@ -11,20 +11,20 @@ FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
 export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224"
 export SAM3_CHECKPOINT_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/sam3"
-export HF_HOME="/robot/robot-rfm/.hf_cache"
+export HF_HOME="/DATA/disk1/zyz/.cache/huggingface"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 export SWANLAB_API_KEY="pRP4aOFOIGQGP468x0O8f"
 
 # RoboPoint pretrain data (adjust paths as needed).
-export ROBOPOINT_DATA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/pretrain_data/coco"
-IMAGE_FOLDER="${ROBOPOINT_DATA_ROOT}/images"
+export ROBOPOINT_DATA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/pretrain_data"
+IMAGE_FOLDER="${ROBOPOINT_DATA_ROOT}"
 JSON_DETECTION_PATH="${ROBOPOINT_DATA_ROOT}/detection_data.json"
 
 # Cluster env vars (same pattern as finetune/RLBench/train_h20.sh)
 export MLP_WORKER_NUM=${WORLD_SIZE:-1}
-export MLP_WORKER_GPU=${RESOURCE_GPU:-2}
+export MLP_WORKER_GPU=${RESOURCE_GPU:-8}
 export MLP_ROLE_INDEX=${RANK:-0}
 export MLP_WORKER_0_HOST=${MASTER_ADDR:-localhost}
 export MLP_WORKER_0_PORT=${MASTER_PORT:-29503}

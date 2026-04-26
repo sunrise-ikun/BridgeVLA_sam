@@ -1,5 +1,5 @@
 
-cd BridgeVLA/finetune
+cd /DATA/disk1/zyz/projects/BridgeVLA_sam/finetune
 pip install -e .
 pip install -q -U transformers datasets peft bitsandbytes
 pip3 install peft

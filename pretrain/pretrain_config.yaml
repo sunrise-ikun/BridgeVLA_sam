@@ -1,10 +1,10 @@
 # --- General ---
 exp_name: bridgevla_pretrain_coco
-output_dir: /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs/pretrain
+output_dir: /DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/logs/pretrain
 
 # --- Data ---
-image_folder: /DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/pretrain_data/coco/images
-json_detection_path: /DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/pretrain_data/coco/detection_data.json
+image_folder: /DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/pretrain_data
+json_detection_path: /DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/pretrain_data/detection_data.json
 img_size: 224
 img_patch_size: 14
 
