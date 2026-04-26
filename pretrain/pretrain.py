@@ -176,7 +176,11 @@ class DataCollator(object):
         images = [ex["image"] for ex in data]
         raw_label = [ex["raw_label"] for ex in data]
         flag = [ex["flag"] for ex in data]
-        tokens = self.processor(text=texts, images=images,
+        # Prepend one <image> token per image to each prompt to match
+        # PaliGemmaProcessor's expected format (same convention as finetune
+        # mvt_single.py) and silence its inference warning.
+        prompts = ["<image>" + t for t in texts]
+        tokens = self.processor(text=prompts, images=images,
                                 return_tensors="pt", padding="longest")
         # Also retain raw texts (for SAM3 text encoder).
         tokens["raw_text"] = texts
