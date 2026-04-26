@@ -234,59 +234,109 @@ class MVT(nn.Module):
         from safetensors import safe_open
         import json
 
-        def load_all_params(checkpoint_dir):
-            # Load the index file
+        def load_safetensors_shards(checkpoint_dir):
+            """Legacy loader for the HF-Trainer `model.safetensors.index.json` layout."""
             with open(f"{checkpoint_dir}/model.safetensors.index.json") as f:
                 index = json.load(f)
-            
             all_params = {}
             for shard_file in set(index["weight_map"].values()):
                 with safe_open(f"{checkpoint_dir}/{shard_file}", framework="pt") as f:
                     for key in f.keys():
-                        # Remove the "module." prefix
                         clean_key = key.replace("module.", "")
                         all_params[clean_key] = f.get_tensor(key)
             return all_params
 
+        def load_pretrain_state_dict(path):
+            """Load the pretrain checkpoint.
+
+            Supports three on-disk formats:
+              1. A single `.pth` file saved by pretrain/pretrain.py
+                 (torch.save({"model_state": state_dict, ...}))
+              2. A directory with `model.safetensors.index.json` shards
+                 (legacy HF-Trainer format)
+              3. A single `.safetensors` file.
+            Returns a flat state-dict with keys like
+              model.*, pali_ln.*, pali_proj.*, sam3_ln.*,
+              fusion_transformer.*, up0.*
+            """
+            if os.path.isdir(path):
+                return load_safetensors_shards(path)
+            if path.endswith(".safetensors"):
+                sd = {}
+                with safe_open(path, framework="pt") as f:
+                    for k in f.keys():
+                        sd[k.replace("module.", "")] = f.get_tensor(k)
+                return sd
+            ckpt = torch.load(path, map_location="cpu", weights_only=False)
+            if isinstance(ckpt, dict) and "model_state" in ckpt:
+                sd = ckpt["model_state"]
+            else:
+                sd = ckpt
+            return {k.replace("module.", ""): v for k, v in sd.items()}
 
         # Allow local paligemma snapshot via env var (avoid HF hub download)
         model_id = os.environ.get("PALIGEMMA_PATH", "google/paligemma-3b-pt-224")
         _rank = torch.distributed.get_rank() if (torch.distributed.is_available() and torch.distributed.is_initialized()) else 0
         if _rank == 0:
             print(f"[mvt_single] Loading PaliGemma from: {model_id}")
+
+        self.model = PaliGemmaForConditionalGeneration.from_pretrained(
+            model_id, torch_dtype=torch.bfloat16
+        )
+        self.processor = PaliGemmaProcessor.from_pretrained(model_id)
+
         if load_pretrain:
             assert pretrain_path is not None
+            if _rank == 0:
+                print(f"[mvt_single] Loading BridgeVLA pretrain weights from: {pretrain_path}")
+            all_params = load_pretrain_state_dict(pretrain_path)
 
-            self.model = PaliGemmaForConditionalGeneration.from_pretrained(model_id, torch_dtype=torch.bfloat16)
-            self.processor = PaliGemmaProcessor.from_pretrained(model_id) 
-            pretrained_dir=pretrain_path
-            print("The pretrained path is:",pretrained_dir)
-            all_params = load_all_params(pretrained_dir)
+            # Bucket parameters by submodule prefix. Everything outside the
+            # known submodules is classed as an "extra" key.
+            buckets = {
+                "model.": {}, "pali_ln.": {}, "pali_proj.": {},
+                "sam3_ln.": {}, "fusion_transformer.": {}, "up0.": {},
+            }
+            extras = {}
+            for k, v in all_params.items():
+                matched = False
+                for prefix, bucket in buckets.items():
+                    if k.startswith(prefix):
+                        bucket[k[len(prefix):]] = v
+                        matched = True
+                        break
+                if not matched:
+                    # Skip SAM3 encoder weights — they are loaded directly from
+                    # the SAM3 checkpoint in SAM3EncoderWrapper.
+                    if k.startswith("sam3_encoder."):
+                        continue
+                    extras[k] = v
 
-            # Separate the base model parameters (assuming the original model parameter names do not contain "up0")
-            base_params = {k: v for k, v in all_params.items() if not k.startswith("up0.")}
+            # Load each submodule (non-strict: dimensions may have changed).
+            def _load(submodule, params, name):
+                if len(params) == 0:
+                    if _rank == 0:
+                        print(f"[mvt_single] No pretrain weights found for {name}; skipping.")
+                    return
+                miss, unexp = submodule.load_state_dict(params, strict=False)
+                if _rank == 0:
+                    print(f"[mvt_single] Loaded {name}: missing={len(miss)}, unexpected={len(unexp)}")
+                    if miss:
+                        print(f"  missing[:5]={miss[:5]}")
+                    if unexp:
+                        print(f"  unexpected[:5]={unexp[:5]}")
 
-            # Separate the custom layer parameters
-            custom_params = {k.replace("up0.",""): v for k, v in all_params.items() if k.startswith("up0.")}
-            # Load parameters (strict mode)
-            missing_keys, unexpected_keys = self.model.load_state_dict(base_params, strict=False)
-            print("Missing keys  base:", missing_keys)  # Should be an empty list
-            print("Unexpected keys base:", unexpected_keys) # Should be an empty list
-            # Load parameters (non-strict: up0 in_dim changed from vlm_dim to fused_dim)
-            missing_keys_up0, unexpected_keys_up0 = self.up0.load_state_dict(custom_params, strict=False)
-            print("Missing keys up0:", missing_keys_up0)
-            print("Unexpected keys up0 :", unexpected_keys_up0)
-            if missing_keys_up0 or unexpected_keys_up0:
-                print("[WARN] up0 dimensions changed (fused_dim); old up0 weights partially skipped.")
-            import time
-            time.sleep(5)
-
-            
+            _load(self.model, buckets["model."], "PaliGemma (model)")
+            _load(self.pali_ln, buckets["pali_ln."], "pali_ln")
+            _load(self.pali_proj, buckets["pali_proj."], "pali_proj")
+            _load(self.sam3_ln, buckets["sam3_ln."], "sam3_ln")
+            _load(self.fusion_transformer, buckets["fusion_transformer."], "fusion_transformer")
+            _load(self.up0, buckets["up0."], "up0")
+            if extras and _rank == 0:
+                print(f"[mvt_single] Ignored {len(extras)} extra keys (e.g. {list(extras.keys())[:3]}).")
         else:
-
-            self.model = PaliGemmaForConditionalGeneration.from_pretrained(model_id, torch_dtype=torch.bfloat16)
-            self.processor = PaliGemmaProcessor.from_pretrained(model_id)   
-            print("You are loading original paligemma model!")
+            if _rank == 0:
+                print("You are loading original paligemma model (no pretrain weights).")
 
         global select_feat_from_hm
 
