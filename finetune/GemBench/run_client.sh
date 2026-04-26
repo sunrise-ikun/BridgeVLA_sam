@@ -5,13 +5,13 @@ source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/miniconda3/bin/act
 
 BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
-MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train_gembench/gembench_lr8e-5_04_24_21_43"
+MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train_gembench/gembench_31tasks_fixSAM_lr8e-5_04_26_03_09"
 GEMBENCH_ROOT="${BRIDGEVLA_ROOT}/data/bridgevla_data/GEMBench"
 SEED="${1:-300}"
-MODEL_EPOCH="${2:-50}"
+MODEL_EPOCH="${2:-92}"
 MICROSTEP_DATA_DIR="${3:-${GEMBENCH_ROOT}/test_dataset/microsteps/seed${SEED}}"
 OUTPUT_ROOT="${4:-${MODEL_FOLDER}/eval/gembench}"
-PORT="${PORT:-13003}"
+PORT="${PORT:-13007}"
 IP="${IP:-localhost}"
 
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
@@ -51,14 +51,16 @@ echo "[Info] VISUALIZE    = ${VISUALIZE} (${VISUALIZE_ROOT_DIR})"
 
 cd "${FINETUNE_DIR}/GemBench"
 
-declare -A TASKVARS
-TASKVARS[train]="open_door+0 open_drawer+0 open_drawer+2 close_jar_peract+15 close_jar_peract+16"
-TASKVARS[test_l2]="close_jar_peract+3 close_jar_peract+4"
-TASKVARS[test_l3]="open_drawer_long+0 open_drawer_long+1 open_drawer_long+2 open_drawer_long+3 open_door2+0 open_drawer2+0 open_drawer3+0 open_drawer+1 close_drawer+0"
-TASKVARS[test_l4]="put_items_in_drawer+0 put_items_in_drawer+2 put_items_in_drawer+4"
+TASKS_DIR="${FINETUNE_DIR}/GemBench/assets"
+declare -A TASK_JSONS
+TASK_JSONS[train]="${TASKS_DIR}/taskvars_train.json"
+TASK_JSONS[test_l2]="${TASKS_DIR}/taskvars_test_l2.json"
+TASK_JSONS[test_l3]="${TASKS_DIR}/taskvars_test_l3.json"
+TASK_JSONS[test_l4]="${TASKS_DIR}/taskvars_test_l4.json"
 
 for split in train test_l2 test_l3 test_l4; do
-    for taskvar in ${TASKVARS[$split]}; do
+    mapfile -t taskvars < <(python3 -c "import json,sys; [print(t) for t in json.load(open('${TASK_JSONS[$split]}'))]")
+    for taskvar in "${taskvars[@]}"; do
         xvfb-run -a python3 client.py \
             --ip "${IP}" \
             --port "${PORT}" \

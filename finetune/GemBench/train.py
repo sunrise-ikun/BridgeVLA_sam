@@ -400,9 +400,6 @@ def experiment(cmd_args):
             _epoch_debug_dir = os.path.join(debug_vis_dir, f"epoch_{i}")
         out = train(agent, train_dataloader, epoch=i, rank=dist.get_rank(), cameras=cmd_args.cameras, debug_dir=_epoch_debug_dir)
 
-        if dist.get_rank() == 0 and USE_SWANLAB:
-            swanlab.log({f"epoch_{k}": v for k, v in out.items()}, step=i)
-
         save_every = int(getattr(exp_cfg, "save_every_n_epochs", 20))
         is_periodic_save = save_every > 0 and i > 0 and (i % save_every == 0)
         is_final_save = save_every > 0 and i == end_epoch - 1
