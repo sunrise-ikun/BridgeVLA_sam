@@ -221,6 +221,7 @@ def eval(
     for task_id in range(num_tasks):
         task_rewards = []
         language_goals=[]
+        episode_ids=[]
         for ep in range(start_episode, start_episode + eval_episodes):
             episode_rollout = []
             if not visualize:
@@ -273,6 +274,7 @@ def eval(
             task_rewards.append(reward)
             lang_goal = eval_env._lang_goal
             language_goals.append(lang_goal)
+            episode_ids.append(ep)
             if verbose:
                 print(
                     f"Evaluating {task_name} | Episode {ep} | Score: {reward} | Episode Length: {len(episode_rollout)} | Lang Goal: {lang_goal}"
@@ -332,18 +334,19 @@ def eval(
                 if isinstance(summary, VideoSummary):
                     lang_goal = language_goals.pop(0)
                     lang_goal=lang_goal.replace(" ", "_")
+                    ep_id = episode_ids[video_cnt]
                     video = deepcopy(summary.value)
                     video = np.transpose(video, (0, 2, 3, 1))
                     video = video[:, :, :, ::-1]
                     if task_rewards[video_cnt] > 99:
                         video_path = os.path.join(
                             record_folder,
-                            f"{lang_goal}_success_{video_success_cnt}.mp4",
+                            f"episode_{ep_id}_{lang_goal}_success_{video_success_cnt}.mp4",
                         )
                         video_success_cnt += 1
                     else:
                         video_path = os.path.join(
-                            record_folder, f"{lang_goal}_fail_{video_fail_cnt}.mp4"
+                            record_folder, f"episode_{ep_id}_{lang_goal}_fail_{video_fail_cnt}.mp4"
                         )
                         video_fail_cnt += 1
                     video_cnt += 1

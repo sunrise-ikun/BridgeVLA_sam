@@ -80,34 +80,44 @@ def save_point_cloud_with_color(filename, points, colors, keypoint=None):
 
 
 def visualize_images(
-    color_tensor: torch.Tensor,  #  (3, 3, 224, 224) 
-    gray_tensor: torch.Tensor,   #  (224, 224, 3) 
+    color_tensor: torch.Tensor,  #  (3, 3, 224, 224)
+    gray_tensor: torch.Tensor,   #  (224, 224, 3)
     save_dir: str = "/opt/tiger/3D_OpenVLA/3d_policy/RVT/rvt_our/debug",
     heatmap_alpha: float = 0.5,
+    logits_tensor: torch.Tensor = None,  # (224, 224, 3), raw pre-softmax logits
+    logits_vmin: float = -10.0,
+    logits_vmax: float = 40.0,
 ) -> None:
     """
     1. original_0.png, original_1.png, original_2.png   (original image)
     2. gray_0.png, gray_1.png, gray_2.png              (gray image)
     3. overlay_0.png, overlay_1.png, overlay_2.png     (softmax heatmap overlaid on image)
+    4. logits_0.png, logits_1.png, logits_2.png        (raw logits w/ fixed-range colorbar)
     """
     import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
 
     os.makedirs(save_dir, exist_ok=True)
-    
-    color_imgs = color_tensor.cpu().numpy().transpose(0, 2, 3, 1) 
-    gray_imgs = gray_tensor.cpu().numpy().transpose(2, 0, 1)     
-    
+
+    color_imgs = color_tensor.cpu().numpy().transpose(0, 2, 3, 1)
+    gray_imgs = gray_tensor.cpu().numpy().transpose(2, 0, 1)
+
+    if logits_tensor is not None:
+        logits_imgs = logits_tensor.cpu().numpy().transpose(2, 0, 1)  # (3, H, W)
+    else:
+        logits_imgs = None
+
     for i in range(3):
 
         original_img = np.clip(color_imgs[i], 0, 1) * 255
         original_img = original_img.astype(np.uint8)
         Image.fromarray(original_img).save(os.path.join(save_dir, f"original_{i}.png"))
-        
+
 
         gray_img = np.clip(gray_imgs[i], 0, 1) * 255
         gray_img = gray_img.astype(np.uint8)
         Image.fromarray(gray_img, mode="L").save(os.path.join(save_dir, f"gray_{i}.png"))
-        
+
 
         hm = gray_imgs[i].astype(np.float64)
         hm_min, hm_max = hm.min(), hm.max()
@@ -123,8 +133,34 @@ def visualize_images(
             + heatmap_alpha * heatmap_rgb.astype(np.float64)
         )
         blended = np.clip(blended, 0, 255).astype(np.uint8)
-        
+
         Image.fromarray(blended).save(os.path.join(save_dir, f"overlay_{i}.png"))
+
+        if logits_imgs is not None:
+            logit_img = logits_imgs[i].astype(np.float64)
+            fig, ax = plt.subplots(figsize=(6, 5))
+            im = ax.imshow(
+                logit_img,
+                cmap="jet",
+                vmin=logits_vmin,
+                vmax=logits_vmax,
+                interpolation="nearest",
+            )
+            ax.set_title(
+                f"view {i} raw logits\n"
+                f"min={logit_img.min():.3f}  max={logit_img.max():.3f}  "
+                f"(display range [{logits_vmin}, {logits_vmax}])"
+            )
+            ax.set_axis_off()
+            cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label("logit value")
+            fig.tight_layout()
+            fig.savefig(
+                os.path.join(save_dir, f"logits_{i}.png"),
+                dpi=150,
+                bbox_inches="tight",
+            )
+            plt.close(fig)
 
 
 def apply_channel_wise_softmax(gray_tensor):
@@ -1185,12 +1221,14 @@ class RVTAgent:
 
             mvt1_img=out["mvt1_ori_img"][0,:,3:6]
             mvt2_img=out["mvt2_ori_img"][0,:,3:6]
-            q_trans_1=q_trans[0,:,:3].clone().view(224,224,3)
-            q_trans_2=q_trans[0,:,3:6].clone().view(224,224,3)
-            q_trans_1=apply_channel_wise_softmax(q_trans_1)*100
-            q_trans_2=apply_channel_wise_softmax(q_trans_2)*100
-            visualize_images(mvt1_img,q_trans_1,save_dir=os.path.join(save_dir,"mvt1"))
-            visualize_images(mvt2_img,q_trans_2,save_dir=os.path.join(save_dir,"mvt2"))
+            q_trans_1_raw=q_trans[0,:,:3].clone().view(224,224,3)
+            q_trans_2_raw=q_trans[0,:,3:6].clone().view(224,224,3)
+            q_trans_1=apply_channel_wise_softmax(q_trans_1_raw)*100
+            q_trans_2=apply_channel_wise_softmax(q_trans_2_raw)*100
+            visualize_images(mvt1_img,q_trans_1,save_dir=os.path.join(save_dir,"mvt1"),
+                             logits_tensor=q_trans_1_raw)
+            visualize_images(mvt2_img,q_trans_2,save_dir=os.path.join(save_dir,"mvt2"),
+                             logits_tensor=q_trans_2_raw)
             save_point_cloud_with_color(os.path.join(save_dir,"point_cloud.ply"), pc_ori.cpu().numpy(), img_feat_ori.cpu().numpy(), pred_wpt[0].cpu().numpy())
             with torch.no_grad():
                 pred_wpt_local_viz = self._net_mod.get_wpt(out, True, dyn_cam_info, y_q)
