@@ -8,10 +8,10 @@ FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 MODEL_FOLDER="${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train_gembench/gembench_31tasks_fixSAM_lr8e-5_04_26_03_09"
 GEMBENCH_ROOT="${BRIDGEVLA_ROOT}/data/bridgevla_data/GEMBench"
 SEED="${1:-300}"
-MODEL_EPOCH="${2:-92}"
+MODEL_EPOCH="${2:-44}"
 MICROSTEP_DATA_DIR="${3:-${GEMBENCH_ROOT}/test_dataset/microsteps/seed${SEED}}"
 OUTPUT_ROOT="${4:-${MODEL_FOLDER}/eval/gembench}"
-PORT="${PORT:-13007}"
+PORT="${PORT:-13044}"
 IP="${IP:-localhost}"
 
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
@@ -29,11 +29,11 @@ export TOKENIZERS_PARALLELISM=false
 
 [ -d "${MICROSTEP_DATA_DIR}" ] || { echo "[Error] MICROSTEP_DATA_DIR missing: ${MICROSTEP_DATA_DIR}"; echo "[Hint] Extract ${GEMBENCH_ROOT}/test_dataset/microsteps.tar.gz under ${GEMBENCH_ROOT}/test_dataset first."; exit 1; }
 
-RECORD_VIDEO="${RECORD_VIDEO:-1}"
-VIDEO_ROTATE_CAM="${VIDEO_ROTATE_CAM:-1}"
+RECORD_VIDEO="${RECORD_VIDEO:-0}"
+VIDEO_ROTATE_CAM="${VIDEO_ROTATE_CAM:-0}"
 VIDEO_RES_W="${VIDEO_RES_W:-320}"
 VIDEO_RES_H="${VIDEO_RES_H:-180}"
-VISUALIZE="${VISUALIZE:-1}"
+VISUALIZE="${VISUALIZE:-0}"
 VISUALIZE_ROOT_DIR="${VISUALIZE_ROOT_DIR:-${OUTPUT_ROOT}/model_${MODEL_EPOCH}/seed${SEED}/visualize}"
 
 EXTRA_ARGS=()

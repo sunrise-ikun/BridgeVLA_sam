@@ -5,9 +5,9 @@ source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/miniconda3/bin/act
 
 BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
-MODEL_EPOCH="${1:-92}"
+MODEL_EPOCH="${1:-44}"
 MODEL_FOLDER="${2:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train_gembench/gembench_31tasks_fixSAM_lr8e-5_04_26_03_09}"
-PORT="${PORT:-13007}"
+PORT="${PORT:-13044}"
 
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
 export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224"
@@ -21,7 +21,7 @@ export HF_HOME="/robot/robot-rfm/.hf_cache"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-1}"
 
 [ -d "${MODEL_FOLDER}" ] || { echo "[Error] MODEL_FOLDER missing: ${MODEL_FOLDER}"; exit 1; }
 [ -f "${MODEL_FOLDER}/model_${MODEL_EPOCH}.pth" ] || { echo "[Error] checkpoint missing: ${MODEL_FOLDER}/model_${MODEL_EPOCH}.pth"; exit 1; }
