@@ -16,7 +16,7 @@ num_train_epochs: 8
 # Two-stage — PaliGemma frozen for the first `freeze_epochs` epochs, then
 # unfrozen. Accepts fractions: e.g. 0.5 triggers the transition halfway
 # through epoch 0.
-freeze_epochs: 0.2
+freeze_epochs: 1
 warmup_steps: 200           # linear warmup per stage (re-applied on stage 2)
 dataloader_num_workers: 8
 
@@ -30,5 +30,5 @@ save_total_limit: 30        # keep last N epoch checkpoints (0 = keep all)
 swanlab_project: bridgevla_pretrain
 
 # --- Inference / test_inference (branches == 3) ---
-checkpoint_dir: PATH_TO_PRETRAIN_CHECKPOINT.pth
+checkpoint_dir: /DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/logs/pretrain/bridgevla_pretrain_coco/20260426_140113/pretrain_epoch_3.pth
 test_save_path: ./pretrain_debug.png

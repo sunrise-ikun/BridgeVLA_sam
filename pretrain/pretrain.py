@@ -27,6 +27,7 @@ import yaml
 import argparse
 import datetime
 import subprocess
+import textwrap
 from dataclasses import dataclass
 from itertools import cycle
 
@@ -90,6 +91,7 @@ def masked_mean(tensor):
 
 
 def visualize_bboxes_and_heatmap(image, bboxes_norm, heatmap_tensor, save_path,
+                                 caption=None,
                                  bbox_colors=['red', 'lime', 'cyan', 'yellow'],
                                  bbox_width=2):
     resized_img = image.resize((224, 224))
@@ -109,7 +111,11 @@ def visualize_bboxes_and_heatmap(image, bboxes_norm, heatmap_tensor, save_path,
     ax2.imshow(heatmap, cmap='viridis', alpha=0.95)
     ax2.imshow(resized_img, alpha=0.05)
     ax2.set_title('Heatmap Overlay'); ax2.axis('off')
+    if caption is not None:
+        fig.text(0.5, 0.02, textwrap.fill(caption, width=120), ha='center', va='bottom', fontsize=10)
+        fig.subplots_adjust(bottom=0.18)
     plt.savefig(save_path)
+    plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -770,32 +776,46 @@ def test_inference(cmd_args):
     model = model.to(device).eval()
     processor = model._processor
 
-    ds = RoboPointDataset(cmd_args.image_folder, cmd_args.json_detection_path, res=224)
-    save_path = cfg.get("test_save_path", "./pretrain_test.png")
+    image_folder = cmd_args.image_folder or cfg.get("image_folder")
+    json_detection_path = cmd_args.json_detection_path or cfg.get("json_detection_path")
+    ds = RoboPointDataset(image_folder, json_detection_path, res=224)
+    collator = DataCollator(processor=processor)
+    checkpoint_path = cfg["checkpoint_dir"]
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+    checkpoint_name = os.path.splitext(os.path.basename(checkpoint_path))[0]
+    save_dir = os.path.join(checkpoint_dir, f"debug_{checkpoint_name}")
+    os.makedirs(save_dir, exist_ok=True)
     with torch.no_grad():
         for i in range(len(ds) - 1, 0, -300):
             sample = ds[i]
-            tokens = processor(text=[sample["text"]], images=[sample["image"]],
-                               return_tensors="pt", padding="longest")
-            tokens = {k: v.to(device) for k, v in tokens.items()}
+            batch = collator([sample])
+            tokens = {
+                k: v.to(device)
+                for k, v in batch.items()
+                if torch.is_tensor(v)
+            }
             out = model(
                 input_ids=tokens["input_ids"],
                 pixel_values=tokens["pixel_values"],
                 attention_mask=tokens["attention_mask"],
-                raw_label=[sample["raw_label"]],
-                flag=[sample["flag"]],
-                raw_text=[sample["text"]],
+                raw_label=batch["raw_label"],
+                flag=batch["flag"],
+                raw_text=batch["raw_text"],
             )
-            print("loss=", out["loss"].item(), "text=", sample["text"])
+            infer_text = batch["raw_text"][0]
+            save_path = os.path.join(save_dir, f"sample_{i:06d}.png")
+            print("loss=", out["loss"].item(), "text=", infer_text, "save_path=", save_path)
             q_trans = out["q_trans"].view(224, 224, 1).detach()
             heatmap = F.softmax(q_trans.view(-1), dim=0).view(224, 224, 1)
             if sample["flag"] == "detection_1":
                 ans = ast.literal_eval(sample["raw_label"])
                 bbox = convert_xyxy_to_cxcywh(ans)
-                visualize_bboxes_and_heatmap(sample["image"], [bbox], heatmap, save_path)
+                visualize_bboxes_and_heatmap(sample["image"], [bbox], heatmap, save_path,
+                                             caption=infer_text)
             else:
                 ans = ast.literal_eval(sample["raw_label"])
-                visualize_bboxes_and_heatmap(sample["image"], ans, heatmap, save_path)
+                visualize_bboxes_and_heatmap(sample["image"], ans, heatmap, save_path,
+                                             caption=infer_text)
 
 
 # ---------------------------------------------------------------------------
