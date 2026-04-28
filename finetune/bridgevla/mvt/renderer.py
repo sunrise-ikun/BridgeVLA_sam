@@ -1,4 +1,11 @@
 # Copy from https://github.com/NVlabs/RVT/blob/master/rvt/mvt/renderer.py
+#
+# NOTE: 本文件的 BoxRenderer 当前代码路径中 **未被使用**。
+# mvt.py 里 `from point_renderer.rvt_renderer import RVTBoxRenderer as BoxRenderer`
+# 会在运行时覆盖 BoxRenderer。实际使用的渲染器见
+# finetune/bridgevla/libs/point-renderer/point_renderer/rvt_renderer.py
+# （注意其 elev_azim/cam_names 与这里不同：这里硬编码 5 视图 top/front/back/left/right，
+#   而 RVTBoxRenderer 默认会根据 rend_three_views 等参数选 3 或 5 个视图）。
 from math import ceil, floor
 from typing import Optional, Tuple
 

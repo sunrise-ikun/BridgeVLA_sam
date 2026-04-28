@@ -1219,6 +1219,11 @@ class RVTAgent:
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
 
+            # NOTE: 下面的切片 :3 / 3:6 硬编码假设 num_img=3 且 stage_two=True：
+            #   q_trans shape = (bs, h*w, 2*num_img) = (bs, h*w, 6)  (见 get_q 中的 cat)
+            #   前 3 通道是 mvt1 的 3 张 heatmap，后 3 通道是 mvt2 的 3 张 heatmap。
+            # 因此该代码路径只在 rend_three_views=True 时正确；若改成 5 视图或单 stage，
+            # 这里以及 visualize_images 的 for i in range(3) 都要同步改。
             mvt1_img=out["mvt1_ori_img"][0,:,3:6]
             mvt2_img=out["mvt2_ori_img"][0,:,3:6]
             q_trans_1_raw=q_trans[0,:,:3].clone().view(224,224,3)

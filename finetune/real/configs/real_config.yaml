@@ -1,0 +1,41 @@
+exp_id: real_dobot_zed
+# Tasks is unused by the real dataset (episode names encode the task), but the
+# cfg key must exist.
+tasks: all
+# NOTE: do not set bs<4. The rotation-head BatchNorm in MVTSingle requires >1
+# sample per channel; small batches also trigger a cuBLAS FPE inside PaliGemma
+# with bf16 weights. bs=4 per GPU is the verified minimum.
+bs: 4
+num_workers: 4
+epochs: 80
+# Each epoch is one full pass over the 20251011 Real dataset (~248 samples).
+# train_iter is unused for this trainer (we iterate a DataLoader), but leaving
+# the cfg key prevents yacs from complaining about frozen keys elsewhere.
+train_iter: 10000
+save_every_n_epochs: 5
+sample_distribution_mode: task_uniform
+
+# --- Two-stage training (same recipe as RLBench) ---
+# Stage 1 (epoch 0..freeze_epochs-1): freeze SAM3 encoder + PaliGemma,
+#   train only fusion/up0/heads.
+# Stage 2 (epoch >= freeze_epochs): unfreeze PaliGemma, SAM3 stays frozen.
+freeze_epochs: 4
+warmup_steps: 300  # smaller because the real dataset is tiny
+
+swanlab_project: "bridgevla_sam_real"
+swanlab_run: "real_zed_dobot_bs4_lr5e-5_20251011"
+log_dir: "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs_real"
+
+peract:
+  lr: 5e-5
+  optimizer_type: "adamw"
+  weight_decay: 0.01
+  betas: [0.9, 0.95]
+  transform_augmentation: true
+  transform_augmentation_xyz: [0.05, 0.05, 0.05]
+  transform_augmentation_rpy: [0.0, 0.0, 15.0]
+  num_rotation_classes: 72
+
+rvt:
+  place_with_mean: False
+  img_aug: 0.0

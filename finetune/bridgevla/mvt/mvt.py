@@ -65,6 +65,12 @@ class MVT(nn.Module):
     ):
         super().__init__()
 
+        # NOTE: 实际渲染器是 point_renderer.rvt_renderer.RVTBoxRenderer，
+        # 这里把它 import 成 BoxRenderer，会 shadow 掉同目录 ./renderer.py 的 BoxRenderer —— 后者并未被使用。
+        # 视图数由 RVTBoxRenderer 的参数决定（默认 no_down=True, no_top=False）：
+        #   rend_three_views=True  -> 3 views: top / front / right
+        #   rend_three_views=False -> 5 views: top / front / back / left / right
+        # 同名类不同实现，排查视图/heatmap 数量时务必看 RVTBoxRenderer，不要看 ./renderer.py。
         from point_renderer.rvt_renderer import RVTBoxRenderer as BoxRenderer
 
         global BoxRenderer
