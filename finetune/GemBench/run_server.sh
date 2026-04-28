@@ -5,9 +5,9 @@ source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/miniconda3/bin/act
 
 BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
-MODEL_EPOCH="${1:-44}"
+MODEL_EPOCH="${1:-4}"
 MODEL_FOLDER="${2:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs/train_gembench/gembench_31tasks_fixSAM_lr8e-5_04_26_03_09}"
-PORT="${PORT:-13044}"
+PORT="${PORT:-13004}"
 
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
 export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224"
