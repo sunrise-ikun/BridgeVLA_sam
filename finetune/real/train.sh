@@ -4,8 +4,17 @@
 # Usage:
 #   bash finetune/real/train.sh [extra args forwarded to train.py]
 #
+# Env-var toggles (all optional):
+#   DEBUG=true          — single-GPU debug path (requires WORLD_SIZE=1, RESOURCE_GPU=1)
+#   VISUALIZE=1         — start-of-epoch viz on (default). VISUALIZE=0 turns it off.
+#   REAL_PRETRAIN_PATH  — override default pretrain checkpoint path.
+#   SWANLAB_API_KEY     — override the baked-in SwanLab key.
+#
 # Single-GPU debug:
 #   DEBUG=true bash finetune/real/train.sh --debug --epochs 1 --max_iter 2
+#
+# Disable viz:
+#   VISUALIZE=0 bash finetune/real/train.sh
 
 source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/bridgevla_sam/bin/activate
 BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
@@ -37,6 +46,20 @@ for a in "$@"; do
     FORWARD_ARGS+=("$a")
 done
 
+# ---- start-of-epoch visualization toggle ----
+# VISUALIZE=1  → pass --visualize    (default, captures a pre-training baseline)
+# VISUALIZE=0  → pass --no-visualize (skip viz every epoch)
+# CLI --visualize / --no-visualize always wins over the env var.
+VISUALIZE="${VISUALIZE:-1}"
+VIZ_ARGS=()
+if [[ " $* " != *" --visualize "* && " $* " != *" --no-visualize "* ]]; then
+    if [[ "${VISUALIZE}" == "0" ]]; then
+        VIZ_ARGS+=(--no-visualize)
+    else
+        VIZ_ARGS+=(--visualize)
+    fi
+fi
+
 export MLP_WORKER_NUM=${WORLD_SIZE:-1}
 export MLP_WORKER_GPU=${RESOURCE_GPU:-2}
 export MLP_ROLE_INDEX=${RANK:-0}
@@ -52,6 +75,7 @@ if [[ "${DEBUG:-false}" == "true" && "${MLP_WORKER_NUM}" == "1" && "${MLP_WORKER
         --exp_cfg_path real/configs/real_config.yaml \
         --mvt_cfg_path real/configs/mvt_cfg.yaml \
         "${PRETRAIN_ARGS[@]}" \
+        "${VIZ_ARGS[@]}" \
         "${FORWARD_ARGS[@]}"
 else
     torchrun \
@@ -64,5 +88,6 @@ else
         --exp_cfg_path real/configs/real_config.yaml \
         --mvt_cfg_path real/configs/mvt_cfg.yaml \
         "${PRETRAIN_ARGS[@]}" \
+        "${VIZ_ARGS[@]}" \
         "${FORWARD_ARGS[@]}"
 fi

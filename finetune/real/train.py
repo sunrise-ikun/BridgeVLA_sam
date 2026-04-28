@@ -45,6 +45,7 @@ from real.utils.peract_utils import (                       # noqa: E402
     IMAGE_SIZE,
     SCENE_BOUNDS_REAL,
 )
+from real.visualize import visualize_epoch                  # noqa: E402
 
 try:
     import swanlab  # noqa: F401
@@ -360,7 +361,35 @@ def experiment(cmd_args):
 
     save_every = int(getattr(exp_cfg, "save_every_n_epochs", 5))
     iters_per_epoch = max(1, len(loader))  # for computing the global step base
+
+    def run_viz(epoch_idx: int) -> None:
+        """End-of-epoch / pre-epoch visualization on rank 0 only.
+
+        Bypasses DDP (uses agent._net_mod under the hood) so non-zero ranks
+        don't need to participate. We follow it with a dist.barrier() in the
+        caller to re-sync before the next training step.
+        """
+        if rank != 0 or not cmd_args.visualize or cmd_args.viz_per_epoch <= 0:
+            return
+        try:
+            visualize_epoch(
+                agent, dataset, epoch=epoch_idx, log_dir=log_dir,
+                num_samples=cmd_args.viz_per_epoch,
+                cameras=CAMERAS_REAL,
+                seed=epoch_idx,
+            )
+        except Exception as e:
+            print(f"[real/train] visualize_epoch failed at epoch {epoch_idx}: {e}",
+                  flush=True)
+
     for epoch in range(epochs):
+        # Pre-epoch visualization: runs at the *start* of every epoch, so the
+        # very first viz (epoch=0) shows the model state BEFORE any training
+        # steps have run — a useful baseline to track how the heatmap tightens
+        # over time.
+        run_viz(epoch)
+        dist.barrier()
+
         # Stage 2 transition: unfreeze PaliGemma.
         if epoch == FREEZE_EPOCHS:
             for name, param in agent._network.named_parameters():
@@ -428,5 +457,19 @@ if __name__ == "__main__":
                         help="Load BridgeVLA pretrain weights into MVT.")
     parser.add_argument("--pretrain_path", type=str, default=None,
                         help="Path to pretrain checkpoint (.pth or .safetensors dir).")
+    # Visualization master switch. Default ON so a fresh `bash train.sh` also
+    # dumps a pre-training baseline at epoch 0. `--no-visualize` disables it.
+    viz_group = parser.add_mutually_exclusive_group()
+    viz_group.add_argument("--visualize", dest="visualize",
+                           action="store_true", default=True,
+                           help="Enable start-of-epoch visualization (default).")
+    viz_group.add_argument("--no-visualize", dest="visualize",
+                           action="store_false",
+                           help="Disable start-of-epoch visualization.")
+    parser.add_argument("--viz_per_epoch", type=int, default=2,
+                        help="Number of random training samples to visualize at "
+                             "the START of each epoch (rank 0 only). Epoch 0's "
+                             "viz captures the pre-training baseline. Ignored "
+                             "when --no-visualize is set.")
     cmd_args = parser.parse_args()
     experiment(cmd_args)
