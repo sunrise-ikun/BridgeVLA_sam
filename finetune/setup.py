@@ -15,7 +15,6 @@ requirements = [
     "matplotlib",
     "bitsandbytes",
     "transforms3d",
-    "clip @ git+https://github.com/openai/CLIP.git",
 ]
 
 __version__ = "0.0.1"

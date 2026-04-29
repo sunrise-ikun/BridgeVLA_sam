@@ -22,7 +22,7 @@ set -e
 #   - CoppeliaSim / PyRep / RLBench  (simulation-only, not needed for real robot)
 # =======================================================================
 
-BRIDGEVLA_ROOT="/home/zk/Projects/BridgeVLA_sam"
+BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 LIBS_DIR="${FINETUNE_DIR}/bridgevla/libs"
 SAM3_DIR="${BRIDGEVLA_ROOT}/libs/sam3"
@@ -38,8 +38,16 @@ echo "  Conda env      : ${CONDA_DEFAULT_ENV:-<none>}"
 echo "============================================================"
 
 # --- Optional: GitHub mirror (leave empty for direct) ---
-GITHUB_MIRROR=""
-# GITHUB_MIRROR="https://ghfast.top/https://github.com/"
+#GITHUB_MIRROR=""
+GITHUB_MIRROR="https://gh.llkk.cc/https://github.com/"
+# Clean up any stale GitHub mirror configs before setting a new one
+git config --global --get-regexp 'url\..*\.insteadOf' 2>/dev/null | \
+    grep 'https://github.com/' | awk '{print $1}' | \
+    sed 's/\.insteadof$//' | \
+    while read -r key; do
+        git config --global --unset-all "$key.insteadOf" 2>/dev/null || true
+        git config --global --remove-section "$key" 2>/dev/null || true
+    done
 if [ -n "${GITHUB_MIRROR}" ]; then
     git config --global url."${GITHUB_MIRROR}".insteadOf "https://github.com/"
     echo "[Info] GitHub mirror: ${GITHUB_MIRROR}"
@@ -93,7 +101,8 @@ echo "[Step 4/7] Local libs (point-renderer, YARR, peract_colab, SAM3) ..."
 
 # point-renderer (required by MVT for rendering)
 if [ -d "${LIBS_DIR}/point-renderer" ]; then
-    pip install -e "${LIBS_DIR}/point-renderer"
+    # --no-build-isolation: setup.py imports torch at build time
+    pip install --no-build-isolation -e "${LIBS_DIR}/point-renderer"
 else
     echo "[WARN] point-renderer not found at ${LIBS_DIR}/point-renderer — skipping"
 fi
@@ -113,8 +122,12 @@ else
 fi
 
 # SAM3 (frozen vision-language encoder, new in 4_28_real branch)
+# --no-deps: sam3 pins numpy<2 which conflicts with opencv-python>=2.
+# We install its real deps (timm, ftfy, etc.) separately below.
 if [ -d "${SAM3_DIR}" ]; then
-    pip install -e "${SAM3_DIR}"
+    pip install --no-deps -e "${SAM3_DIR}"
+    # sam3 runtime deps (skip numpy — already installed >=2.0 by torch/opencv)
+    pip install 'timm>=1.0.17' 'ftfy' 'regex' 'iopath>=0.1.10' 'portalocker'
 else
     echo "[WARN] sam3 not found at ${SAM3_DIR} — skipping"
 fi
@@ -126,10 +139,25 @@ echo ""
 echo "[Step 5/7] Additional Python packages ..."
 
 # pytorch3d (needed by point-renderer / augmentation)
-pip install "git+${GITHUB_MIRROR:-https://github.com/}facebookresearch/pytorch3d.git@stable"
+# --no-build-isolation: setup.py imports torch at build time
+pip install --no-build-isolation "git+${GITHUB_MIRROR:-https://github.com/}facebookresearch/pytorch3d.git@stable"
 
-# CLIP (needed by bridgevla setup.py but may fail due to git dep)
-pip install "git+${GITHUB_MIRROR:-https://github.com/}openai/CLIP.git" || true
+# CLIP (needed by bridgevla but removed from setup.py to avoid git-clone issues)
+if ! python -c "import clip" 2>/dev/null; then
+    echo "[Info] Installing CLIP ..."
+    CLIP_DIR="/tmp/CLIP_$$"
+    git clone "${GITHUB_MIRROR:-https://github.com/}openai/CLIP.git" "${CLIP_DIR}" \
+        && pip install "${CLIP_DIR}" \
+        && rm -rf "${CLIP_DIR}" \
+        || {
+            echo "[WARN] git clone CLIP failed. Trying pip install from mirror ..."
+            pip install "git+https://gitclone.com/github.com/openai/CLIP.git" \
+                || pip install "git+https://ghproxy.net/https://github.com/openai/CLIP.git" \
+                || echo "[ERROR] CLIP install failed — please clone manually and run: pip install /path/to/CLIP"
+        }
+else
+    echo "[Info] CLIP already installed — skipping"
+fi
 
 # Common training / eval deps
 pip install yacs swanlab bitsandbytes h5py
@@ -177,22 +205,23 @@ echo ""
 echo "[Step 7/7] System packages (optional, may need sudo) ..."
 
 # OpenGL / display dependencies for Open3D and pyrender
-if command -v apt-get &>/dev/null; then
-    echo "[Info] Installing system display libs (requires sudo) ..."
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq \
-        libffi-dev \
-        libgl1-mesa-glx \
-        libglib2.0-0 \
-        libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
-        libxcb-cursor0 libxcb-xinerama0 libxcb-xinput0 \
-        libx11-xcb1 libxcb1 libxcb-render0 libxcb-shm0 libxcb-xfixes0 \
-        libxcb-shape0 libxcb-randr0 libxcb-sync1 libxcb-util1 \
-        libxcb-glx0 libxcb-xkb1 libxkbcommon-x11-0 \
-        ffmpeg
-else
-    echo "[Info] apt-get not available — skipping system packages"
-fi
+# Already installed on this server; uncomment on a fresh machine.
+# if command -v apt-get &>/dev/null; then
+#     echo "[Info] Installing system display libs (requires sudo) ..."
+#     sudo apt-get update -qq
+#     sudo apt-get install -y -qq \
+#         libffi-dev \
+#         libgl1-mesa-glx \
+#         libglib2.0-0 \
+#         libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+#         libxcb-cursor0 libxcb-xinerama0 libxcb-xinput0 \
+#         libx11-xcb1 libxcb1 libxcb-render0 libxcb-shm0 libxcb-xfixes0 \
+#         libxcb-shape0 libxcb-randr0 libxcb-sync1 libxcb-util1 \
+#         libxcb-glx0 libxcb-xkb1 libxkbcommon-x11-0 \
+#         ffmpeg
+# else
+#     echo "[Info] apt-get not available — skipping system packages"
+# fi
 
 
 # ======================================================================

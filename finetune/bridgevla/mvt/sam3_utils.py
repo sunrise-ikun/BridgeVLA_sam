@@ -6,7 +6,7 @@ and geometry encoder to extract 16x16 patch tokens from rendered views.
 """
 
 import os
-import pkg_resources
+import importlib.resources
 
 import torch
 import torch.nn as nn
@@ -45,8 +45,8 @@ class SAM3EncoderWrapper(nn.Module):
         self.patch_end = self.patch_start + input_size // self.SAM3_PATCH_SIZE  # 44
 
         # --- Build SAM3 components ---
-        bpe_path = pkg_resources.resource_filename(
-            "sam3", "assets/bpe_simple_vocab_16e6.txt.gz"
+        bpe_path = str(
+            importlib.resources.files("sam3") / "assets" / "bpe_simple_vocab_16e6.txt.gz"
         )
         position_encoding = _create_position_encoding(
             precompute_resolution=self.SAM3_IMG_SIZE

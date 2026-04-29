@@ -25,6 +25,7 @@ export SAM3_CHECKPOINT_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/sam3"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 # Same key that finetune/RLBench/train_h20.sh exports. Override via env var
 # externally if you want a different account.
 export SWANLAB_API_KEY="${SWANLAB_API_KEY:-pRP4aOFOIGQGP468x0O8f}"
@@ -33,7 +34,7 @@ export SWANLAB_API_KEY="${SWANLAB_API_KEY:-pRP4aOFOIGQGP468x0O8f}"
 # Start real-robot finetuning from the BridgeVLA pretrain weights.
 # Callers can override by passing --pretrain_path ... on the CLI or by setting
 # REAL_PRETRAIN_PATH=... in the environment. Pass --no-pretrain to skip.
-DEFAULT_PRETRAIN_PATH="${REAL_PRETRAIN_PATH:-${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/my_pretrain/pretrain_epoch_1.pth}"
+DEFAULT_PRETRAIN_PATH="${REAL_PRETRAIN_PATH:-${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/bridgevla_sam_pretrain/pretrain_epoch_1.pth}"
 PRETRAIN_ARGS=()
 if [[ " $* " != *" --pretrain_path "* && " $* " != *" --no-pretrain "* ]]; then
     PRETRAIN_ARGS+=(--load_pretrain --pretrain_path "${DEFAULT_PRETRAIN_PATH}")
@@ -60,7 +61,7 @@ if [[ " $* " != *" --visualize "* && " $* " != *" --no-visualize "* ]]; then
 fi
 
 export MLP_WORKER_NUM=${WORLD_SIZE:-1}
-export MLP_WORKER_GPU=${RESOURCE_GPU:-2}
+export MLP_WORKER_GPU=${RESOURCE_GPU:-4}
 export MLP_ROLE_INDEX=${RANK:-0}
 export MLP_WORKER_0_HOST=${MASTER_ADDR:-localhost}
 export MLP_WORKER_0_PORT=${MASTER_PORT:-29503}
