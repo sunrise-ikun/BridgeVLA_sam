@@ -2,18 +2,18 @@ exp_id: real_dobot_zed
 # Which task_group directories under data_root to include.
 # Use "all" to load every task_group found, or a comma-separated list such as
 # "plate_tasks,shelf_tasks,drawer_tasks" to select specific groups.
-tasks: plate_tasks
+tasks: drawer_tasks_selected,plate_tasks,shelf_tasks
 # NOTE: do not set bs<4. The rotation-head BatchNorm in MVTSingle requires >1
 # sample per channel; small batches also trigger a cuBLAS FPE inside PaliGemma
 # with bf16 weights. bs=4 per GPU is the verified minimum.
 bs: 4
 num_workers: 4
-epochs: 80
+epochs: 200
 # Each epoch is one full pass over the 20251011 Real dataset (~248 samples).
 # train_iter is unused for this trainer (we iterate a DataLoader), but leaving
 # the cfg key prevents yacs from complaining about frozen keys elsewhere.
 train_iter: 10000
-save_every_n_epochs: 5
+save_every_n_epochs: 10
 sample_distribution_mode: task_uniform
 
 # --- Two-stage training (same recipe as RLBench) ---

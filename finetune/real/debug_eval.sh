@@ -17,11 +17,12 @@ FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
 export PALIGEMMA_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/paligemma-3b-pt-224"
 export SAM3_CHECKPOINT_PATH="${BRIDGEVLA_ROOT}/data/bridgevla_ckpt/sam3"
+export CUDA_VISIBLE_DEVICES=0
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 
-DEFAULT_CKPT="${REAL_EVAL_CHECKPOINT:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs_real/train/model_last.pth}"
+DEFAULT_CKPT="${REAL_EVAL_CHECKPOINT:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs_real/train/real_zed_dobot_bs4_lr5e-5_20251011_04_29_19_14/model_25.pth}"
 CKPT_ARGS=()
 if [[ " $* " != *" --checkpoint "* ]]; then
     CKPT_ARGS+=(--checkpoint "${DEFAULT_CKPT}")

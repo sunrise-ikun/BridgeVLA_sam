@@ -372,12 +372,16 @@ def experiment(cmd_args):
         """
         if rank != 0 or not cmd_args.visualize or cmd_args.viz_per_epoch <= 0:
             return
+        is_viz_epoch = (epoch_idx % save_every == 0) or (epoch_idx == epochs - 1)
+        if not is_viz_epoch:
+            return
         try:
             visualize_epoch(
                 agent, dataset, epoch=epoch_idx, log_dir=log_dir,
                 num_samples=cmd_args.viz_per_epoch,
                 cameras=CAMERAS_REAL,
                 seed=epoch_idx,
+                stages=("mvt1", "mvt2"),
             )
         except Exception as e:
             print(f"[real/train] visualize_epoch failed at epoch {epoch_idx}: {e}",
@@ -424,7 +428,6 @@ def experiment(cmd_args):
         is_final = epoch == epochs - 1
         if rank == 0 and (is_periodic or is_final):
             save_agent(agent, f"{log_dir}/model_{epoch}.pth", epoch)
-            save_agent(agent, f"{log_dir}/model_last.pth", epoch)
             print(f"[real/train] saved checkpoint at epoch {epoch}", flush=True)
 
         dist.barrier()

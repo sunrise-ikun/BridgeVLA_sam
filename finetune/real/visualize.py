@@ -13,11 +13,9 @@ Two public entry points:
 
 For every sample/stage we save, per 3-view ``i in {0,1,2}``:
 
-    {sample_dir}/{stage}_pred/original_{i}.png
-    {sample_dir}/{stage}_pred/gray_{i}.png
-    {sample_dir}/{stage}_pred/overlay_{i}.png
-    {sample_dir}/{stage}_pred/logits_{i}.png
-    {sample_dir}/{stage}_gt/...   same four files for GT
+    {sample_dir}/{stage}/original_{i}.png       (rendered RGB, saved once)
+    {sample_dir}/{stage}/overlay_{i}.png        (pred | gt side-by-side)
+    {sample_dir}/{stage}/logits_{i}.png         (pred | gt side-by-side)
     {sample_dir}/meta.txt
 """
 
@@ -29,10 +27,9 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-from bridgevla.models.bridgevla_agent import (
-    apply_channel_wise_softmax,
-    visualize_images,
-)
+from PIL import Image
+
+from bridgevla.models.bridgevla_agent import apply_channel_wise_softmax
 import bridgevla.mvt.utils as mvt_utils
 import bridgevla.utils.rvt_utils as rvt_utils
 
@@ -178,6 +175,24 @@ def _run_viz_forward(
 # per-sample save helpers
 # ---------------------------------------------------------------------------
 
+def _make_overlay(gray_vals: np.ndarray, orig_img: np.ndarray,
+                  alpha: float = 0.5) -> np.ndarray:
+    """Blend a single-channel heatmap onto an RGB image. Returns uint8 (H,W,3)."""
+    import matplotlib.cm as cm
+    hm = gray_vals.astype(np.float64)
+    hm_min, hm_max = hm.min(), hm.max()
+    if hm_max - hm_min > 1e-8:
+        hm = (hm - hm_min) / (hm_max - hm_min)
+    else:
+        hm = np.zeros_like(hm)
+    heatmap_rgb = (cm.jet(hm) * 255).astype(np.uint8)[..., :3]
+    blended = (
+        (1 - alpha) * orig_img.astype(np.float64)
+        + alpha * heatmap_rgb.astype(np.float64)
+    )
+    return np.clip(blended, 0, 255).astype(np.uint8)
+
+
 def _save_stage(
     out: dict,
     q_trans: torch.Tensor,
@@ -189,9 +204,17 @@ def _save_stage(
     h: int,
     w: int,
 ) -> bool:
-    """Save pred+GT viz for one stage ("mvt1" or "mvt2"). Returns True on
-    success, False if the stage's rendered image is missing (e.g. mvt2 not
-    produced because stage_two is off)."""
+    """Save pred|gt side-by-side viz for one stage ("mvt1" or "mvt2").
+
+    For each of the ``nc`` views saves:
+      - ``original_{i}.png`` — rendered RGB (single image)
+      - ``overlay_{i}.png``  — pred overlay | gt overlay (1×2)
+      - ``logits_{i}.png``   — pred logits  | gt logits  (1×2, matplotlib)
+
+    Returns True on success, False if the stage's rendered image is missing.
+    """
+    import matplotlib.pyplot as plt
+
     if stage not in _STAGE_INFO:
         raise ValueError(f"unknown stage {stage!r}")
     img_key = _STAGE_INFO[stage]
@@ -211,21 +234,52 @@ def _save_stage(
     pred_hm = apply_channel_wise_softmax(pred_raw) * 100.0
 
     gt_raw = action_trans[sample_idx, :, sl].clone().view(h, w, nc).float()
-    # action_trans is already a per-view Gaussian that sums to 1 across pixels
-    # (see mvt_utils.generate_hm_from_pt). Scale for display so the overlay's
-    # log-percentile mapping has room to work.
     gt_hm = gt_raw * 100.0
 
-    visualize_images(
-        rgb.cpu(), pred_hm.cpu(),
-        save_dir=os.path.join(sample_dir, f"{stage}_pred"),
-        logits_tensor=pred_raw.cpu(),
-    )
-    visualize_images(
-        rgb.cpu(), gt_hm.cpu(),
-        save_dir=os.path.join(sample_dir, f"{stage}_gt"),
-        logits_tensor=gt_raw.cpu(),
-    )
+    save_dir = os.path.join(sample_dir, stage)
+    os.makedirs(save_dir, exist_ok=True)
+
+    color_imgs = rgb.cpu().numpy().transpose(0, 2, 3, 1)   # (nc, H, W, 3)
+    pred_gray = pred_hm.cpu().numpy().transpose(2, 0, 1)    # (nc, H, W)
+    gt_gray = gt_hm.cpu().numpy().transpose(2, 0, 1)
+    pred_logits = pred_raw.cpu().numpy().transpose(2, 0, 1)
+    gt_logits = gt_raw.cpu().numpy().transpose(2, 0, 1)
+
+    logits_vmin, logits_vmax = -10.0, 40.0
+
+    for i in range(nc):
+        orig = (np.clip(color_imgs[i], 0, 1) * 255).astype(np.uint8)
+
+        # --- original (single) ---
+        Image.fromarray(orig).save(os.path.join(save_dir, f"original_{i}.png"))
+
+        # --- overlay: pred | gt ---
+        pred_ov = _make_overlay(pred_gray[i], orig)
+        gt_ov = _make_overlay(gt_gray[i], orig)
+        combined_ov = np.concatenate([pred_ov, gt_ov], axis=1)
+        Image.fromarray(combined_ov).save(
+            os.path.join(save_dir, f"overlay_{i}.png"))
+
+        # --- logits: pred | gt (matplotlib) ---
+        p_l = pred_logits[i].astype(np.float64)
+        g_l = gt_logits[i].astype(np.float64)
+        fig, (ax_p, ax_g) = plt.subplots(1, 2, figsize=(12, 5))
+        ax_p.imshow(p_l, cmap="jet", vmin=logits_vmin, vmax=logits_vmax,
+                    interpolation="nearest")
+        ax_p.set_title(f"pred view {i}\n"
+                       f"min={p_l.min():.3f}  max={p_l.max():.3f}")
+        ax_p.set_axis_off()
+        im_g = ax_g.imshow(g_l, cmap="jet", vmin=logits_vmin, vmax=logits_vmax,
+                           interpolation="nearest")
+        ax_g.set_title(f"gt view {i}\n"
+                       f"min={g_l.min():.3f}  max={g_l.max():.3f}")
+        ax_g.set_axis_off()
+        fig.colorbar(im_g, ax=[ax_p, ax_g], fraction=0.046, pad=0.04)
+        fig.tight_layout()
+        fig.savefig(os.path.join(save_dir, f"logits_{i}.png"),
+                    dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
     return True
 
 

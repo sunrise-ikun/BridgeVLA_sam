@@ -162,8 +162,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--checkpoint", type=str,
-        default="/DATA/disk1/zyz/projects/BridgeVLA_sam/data/"
-                "bridgevla_data/logs_real/train/model_last.pth",
+        default="/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/logs_real/train/"
+                "real_zed_dobot_bs4_lr5e-5_20251011_04_29_19_14/model_25.pth",
         help="Path to a model_X.pth produced by real/train.py.",
     )
     parser.add_argument(
