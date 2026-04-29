@@ -267,6 +267,7 @@ def experiment(cmd_args):
     dataset = Real_Dataset(
         data_path=cmd_args.data_folder,
         cameras=CAMERAS_REAL,
+        tasks=exp_cfg.tasks,
         verbose=(rank == 0),
     )
     if rank == 0:
@@ -447,8 +448,8 @@ if __name__ == "__main__":
     parser.add_argument("--mvt_cfg_opts", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="")
     parser.add_argument("--data_folder", type=str, nargs="+",
-                        default=["/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/"
-                                 "data/bridgevla_data/Real/20251011"])
+                        default=["/DATA/disk1/zyz/projects/BridgeVLA_sam/"
+                                 "data/bridgevla_data/Real"])
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--max_iter", type=int, default=None,
                         help="Cap iterations per epoch (for smoke-testing).")

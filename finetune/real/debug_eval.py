@@ -162,15 +162,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--checkpoint", type=str,
-        default="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/"
-                "bridgevla_data/logs_real/train/"
-                "real_zed_dobot_bs4_lr5e-5_20251011_04_28_15_15/model_5.pth",
+        default="/DATA/disk1/zyz/projects/BridgeVLA_sam/data/"
+                "bridgevla_data/logs_real/train/model_last.pth",
         help="Path to a model_X.pth produced by real/train.py.",
     )
     parser.add_argument(
         "--data_folder", type=str,
-        default="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/"
-                "data/bridgevla_data/Real/20251011",
+        default="/DATA/disk1/zyz/projects/BridgeVLA_sam/"
+                "data/bridgevla_data/Real",
     )
     parser.add_argument("--num_episodes", type=int, default=3)
     parser.add_argument(
@@ -233,7 +232,9 @@ def main():
         ckpt_path, exp_cfg_path, mvt_cfg_path, args.device,
     )
 
-    dataset = Real_Dataset(args.data_folder, cameras=CAMERAS_REAL, verbose=True)
+    tasks_filter = getattr(_exp_cfg, "tasks", "all")
+    dataset = Real_Dataset(args.data_folder, cameras=CAMERAS_REAL,
+                           tasks=tasks_filter, verbose=True)
 
     # --- pick episodes ---
     by_ep = group_samples_by_episode(dataset)

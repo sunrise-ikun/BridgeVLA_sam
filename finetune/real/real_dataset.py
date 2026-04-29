@@ -1,17 +1,22 @@
-"""Real_Dataset for the Dobot + ZED 20251011 layout.
+"""Real_Dataset for the task-grouped Dobot + ZED layout.
 
 Directory layout assumed:
 
-    {data_root}/{episode_name}/{step_idx}/
+    {data_root}/{task_group}/{episode_name}/
         pose.pkl             # full-episode trajectory as a string
         instruction.pkl      # language goal string
         extrinsic_matrix.pkl # 4x4 camera->base
         zed_rgb/{i}.pkl      # uint8 (H,W,3) camera RGB, i = 0..num_frames-1
         zed_pcd/{i}.pkl      # float32 (H,W,3) camera-frame XYZ
+        cam_img/             # optional regular camera images (unused by loader)
 
-For each step_idx we read the {step_idx}.pkl frame (matches the convention the
-old BridgeVLA_Real trainer used), transform the point cloud to the Dobot base
-frame, and build a sample compatible with `RVTAgent.update_gembench()`:
+Examples of task_group directories: plate_tasks, shelf_tasks, drawer_tasks.
+
+For each frame i we produce one training sample (current=i, target=i+1).
+The last frame in each episode has no next target so it is skipped.
+
+The point cloud is transformed from camera frame to the Dobot base frame, and
+the sample is built compatible with `RVTAgent.update_gembench()`:
 
     sample = {
         "3rd":   {"rgb": (3,H,W) uint8, "pcd": (3,H,W) float32 in base frame},
@@ -19,7 +24,7 @@ frame, and build a sample compatible with `RVTAgent.update_gembench()`:
         "ignore_collisions": float32 scalar = 1.0,
         "low_dim_state":    (2,) float32 = [claw, time],
         "lang_goal": str,
-        "tasks":     str,
+        "tasks":     str,   # equals the task_group name
     }
 
 The VLM/SAM3 language encoding wrapping ([[[text]]]) is applied in the training
@@ -88,15 +93,21 @@ class Real_Dataset(torch.utils.data.Dataset):
         self,
         data_path: Union[str, List[str]],
         cameras: List[str] = ("3rd",),
+        tasks: Union[str, List[str]] = "all",
         ep_per_task: int = 10_000,
         verbose: bool = True,
         img_stride: int = 4,
     ):
         """
-        :param img_stride: spatial stride applied to ZED RGB + PCD before they
-            are returned. The raw 1080x1920 ZED frames contain ~2M points per
+        :param data_path: Root directory (or list of roots) containing
+            task_group subdirectories (e.g. plate_tasks, shelf_tasks).
+        :param tasks: Which task_group directories to include. Pass ``"all"``
+            (default) to include every task_group under data_path, or a
+            comma-separated string / list of names to select specific groups.
+        :param img_stride: Spatial stride applied to ZED RGB + PCD before they
+            are returned. The raw 1080x1920 ZED frames contain ~2 M points per
             sample, which is >30x the point count the sim trainer was tuned for;
-            a default stride of 4 downsamples to ~130K points per sample while
+            a default stride of 4 downsamples to ~130 K points per sample while
             preserving the image aspect ratio. Set to 1 to disable.
         """
         if isinstance(data_path, str):
@@ -107,9 +118,17 @@ class Real_Dataset(torch.utils.data.Dataset):
         self.verbose = verbose
         self.img_stride = max(1, int(img_stride))
 
-        # Per-sample index: list of (episode_dir, step_idx, num_steps, task_name).
-        # We lazy-load RGB/PCD in __getitem__ so memory stays flat regardless of
-        # dataset size.
+        # Resolve the set of task_group names to include.
+        if isinstance(tasks, str):
+            if tasks.strip().lower() == "all":
+                self._task_filter: Union[None, set] = None  # None = accept all
+            else:
+                self._task_filter = {t.strip() for t in tasks.split(",") if t.strip()}
+        else:
+            self._task_filter = set(tasks) if tasks else None
+
+        # Per-sample index: list of dicts with episode metadata.
+        # RGB/PCD are lazy-loaded in __getitem__ so memory stays flat.
         self.index: List[dict] = []
         self._build_index(ep_per_task)
 
@@ -119,52 +138,48 @@ class Real_Dataset(torch.utils.data.Dataset):
         for data_path in self.data_paths:
             if not os.path.isdir(data_path):
                 raise FileNotFoundError(f"data_path not found: {data_path}")
-            for ep_name in sorted(os.listdir(data_path)):
-                ep_path = os.path.join(data_path, ep_name)
-                if not os.path.isdir(ep_path):
+            for task_group in sorted(os.listdir(data_path)):
+                task_group_path = os.path.join(data_path, task_group)
+                if not os.path.isdir(task_group_path):
                     continue
-                step_dirs = sorted(
-                    [d for d in os.listdir(ep_path)
-                     if d.isdigit() and os.path.isdir(os.path.join(ep_path, d))],
-                    key=int,
-                )
-                if len(step_dirs) < 2:
-                    # need at least one current->next transition
+                if self._task_filter is not None and task_group not in self._task_filter:
                     continue
-                n_episodes += 1
-                if n_episodes > ep_per_task * max(1, self._num_tasks_cached(data_path)):
-                    # ep_per_task cap is informational; we don't enforce a hard cap
-                    # unless the user relied on the old loader's per-task semantics.
-                    pass
-                num_steps = len(step_dirs)
-                # Each step_dir k has (current=pose_entries[k], target=pose_entries[k+1]).
-                # The last step_dir has no "next" target, so we skip it.
-                for k in range(num_steps - 1):
-                    self.index.append({
-                        "episode_path": ep_path,
-                        "episode_name": ep_name,
-                        "step_idx": int(step_dirs[k]),
-                        "num_steps": num_steps,
-                        "task_name": ep_name,
-                    })
+                for ep_name in sorted(os.listdir(task_group_path)):
+                    ep_path = os.path.join(task_group_path, ep_name)
+                    if not os.path.isdir(ep_path):
+                        continue
+                    zed_rgb_dir = os.path.join(ep_path, "zed_rgb")
+                    if not os.path.isdir(zed_rgb_dir):
+                        continue
+                    frame_files = sorted(
+                        [f for f in os.listdir(zed_rgb_dir) if f.endswith(".pkl")],
+                        key=lambda x: int(os.path.splitext(x)[0]),
+                    )
+                    num_frames = len(frame_files)
+                    if num_frames < 2:
+                        # need at least one current->next transition
+                        continue
+                    n_episodes += 1
+                    # Frame k → current observation; frame k+1 → target action.
+                    # The last frame has no next target so we skip it.
+                    for k in range(num_frames - 1):
+                        self.index.append({
+                            "episode_path": ep_path,
+                            "episode_name": ep_name,
+                            "task_group": task_group,
+                            "step_idx": k,
+                            "num_steps": num_frames,
+                            "task_name": task_group,
+                        })
         if self.verbose:
+            task_groups_found = {e["task_group"] for e in self.index}
             print(f"[Real_Dataset] indexed {len(self.index)} samples from "
-                  f"{n_episodes} episodes across {len(self.data_paths)} root(s) "
-                  f"in {time.time() - t0:.1f}s")
-
-    def _num_tasks_cached(self, data_path: str) -> int:
-        if not hasattr(self, "_task_counts"):
-            self._task_counts = {}
-        if data_path not in self._task_counts:
-            self._task_counts[data_path] = sum(
-                1 for d in os.listdir(data_path)
-                if os.path.isdir(os.path.join(data_path, d))
-            )
-        return self._task_counts[data_path]
+                  f"{n_episodes} episodes, task_groups={sorted(task_groups_found)}, "
+                  f"across {len(self.data_paths)} root(s) in {time.time() - t0:.1f}s")
 
     @property
     def num_tasks(self) -> int:
-        return sum(self._num_tasks_cached(p) for p in self.data_paths)
+        return len({e["task_group"] for e in self.index})
 
     @property
     def num_task_paths(self) -> int:
@@ -178,14 +193,11 @@ class Real_Dataset(torch.utils.data.Dataset):
         ep_path = entry["episode_path"]
         step = entry["step_idx"]
         num_steps = entry["num_steps"]
-        step_dir = os.path.join(ep_path, str(step))
 
-        # --- pose trajectory (shared across step_dirs, but we read the local one) ---
-        gripper_pose = _load_pose_file(os.path.join(step_dir, "pose.pkl"))
-        # GT target for this step is the next-frame pose; current is this step's.
-        target_idx = step + 1
-        if target_idx >= len(gripper_pose):
-            target_idx = len(gripper_pose) - 1
+        # --- pose trajectory (shared file at episode level) ---
+        gripper_pose = _load_pose_file(os.path.join(ep_path, "pose.pkl"))
+        # GT target for this step is the next-frame pose; current is this frame.
+        target_idx = min(step + 1, len(gripper_pose) - 1)
         tgt = gripper_pose[target_idx]
         cur = gripper_pose[min(step, len(gripper_pose) - 1)]
 
@@ -203,8 +215,8 @@ class Real_Dataset(torch.utils.data.Dataset):
             [cur["claw_status"], time_embed], dtype=np.float32
         )
 
-        # --- camera extrinsic (4x4 camera->base) ---
-        with open(os.path.join(step_dir, "extrinsic_matrix.pkl"), "rb") as f:
+        # --- camera extrinsic (4x4 camera->base, shared at episode level) ---
+        with open(os.path.join(ep_path, "extrinsic_matrix.pkl"), "rb") as f:
             extrinsic = np.asarray(pickle.load(f), dtype=np.float64)
 
         sample = {
@@ -215,10 +227,10 @@ class Real_Dataset(torch.utils.data.Dataset):
 
         for cam in self.cameras:
             if cam != "3rd":
-                # Only the ZED (logical "3rd") camera is present in the 20251011 layout.
+                # Only the ZED (logical "3rd") camera is present in this layout.
                 raise ValueError(f"Camera {cam!r} is not available in this dataset")
-            rgb_path = os.path.join(step_dir, "zed_rgb", f"{step}.pkl")
-            pcd_path = os.path.join(step_dir, "zed_pcd", f"{step}.pkl")
+            rgb_path = os.path.join(ep_path, "zed_rgb", f"{step}.pkl")
+            pcd_path = os.path.join(ep_path, "zed_pcd", f"{step}.pkl")
             with open(rgb_path, "rb") as f:
                 rgb_hw3 = pickle.load(f)[:, :, :3]   # drop alpha if present
             if self.img_stride > 1:
@@ -239,7 +251,7 @@ class Real_Dataset(torch.utils.data.Dataset):
             }
 
         # --- language instruction and task label ---
-        with open(os.path.join(step_dir, "instruction.pkl"), "rb") as f:
+        with open(os.path.join(ep_path, "instruction.pkl"), "rb") as f:
             instruction = pickle.load(f)
         sample["lang_goal"] = str(instruction).strip()
         sample["tasks"] = entry["task_name"]
@@ -250,9 +262,10 @@ class Real_Dataset(torch.utils.data.Dataset):
 if __name__ == "__main__":
     import sys
     path = sys.argv[1] if len(sys.argv) > 1 else (
-        "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/Real/20251011"
+        "/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/Real"
     )
-    ds = Real_Dataset(path, cameras=["3rd"])
+    tasks_arg = sys.argv[2] if len(sys.argv) > 2 else "all"
+    ds = Real_Dataset(path, cameras=["3rd"], tasks=tasks_arg)
     print(f"total samples: {len(ds)}")
     s = ds[0]
     for k, v in s.items():

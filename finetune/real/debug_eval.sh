@@ -11,8 +11,7 @@
 #   SWANLAB_API_KEY      — unused here, but carried over for parity
 #   REAL_EVAL_CHECKPOINT — default checkpoint if --checkpoint is not passed
 
-source /robot/robot-research-exp-0/user/lpy/BridgeVLA_sam_env/bridgevla_sam/bin/activate
-BRIDGEVLA_ROOT="/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam"
+BRIDGEVLA_ROOT="/DATA/disk1/zyz/projects/BridgeVLA_sam"
 FINETUNE_DIR="${BRIDGEVLA_ROOT}/finetune"
 
 export PYTHONPATH="${FINETUNE_DIR}:${BRIDGEVLA_ROOT}/libs/sam3:${PYTHONPATH:-}"
@@ -22,7 +21,7 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 
-DEFAULT_CKPT="${REAL_EVAL_CHECKPOINT:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs_real/train/real_zed_dobot_bs4_lr5e-5_20251011_04_28_15_15/model_45.pth}"
+DEFAULT_CKPT="${REAL_EVAL_CHECKPOINT:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs_real/train/model_last.pth}"
 CKPT_ARGS=()
 if [[ " $* " != *" --checkpoint "* ]]; then
     CKPT_ARGS+=(--checkpoint "${DEFAULT_CKPT}")

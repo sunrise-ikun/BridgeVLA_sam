@@ -1,7 +1,8 @@
 exp_id: real_dobot_zed
-# Tasks is unused by the real dataset (episode names encode the task), but the
-# cfg key must exist.
-tasks: all
+# Which task_group directories under data_root to include.
+# Use "all" to load every task_group found, or a comma-separated list such as
+# "plate_tasks,shelf_tasks,drawer_tasks" to select specific groups.
+tasks: plate_tasks
 # NOTE: do not set bs<4. The rotation-head BatchNorm in MVTSingle requires >1
 # sample per channel; small batches also trigger a cuBLAS FPE inside PaliGemma
 # with bf16 weights. bs=4 per GPU is the verified minimum.
@@ -24,7 +25,7 @@ warmup_steps: 300  # smaller because the real dataset is tiny
 
 swanlab_project: "bridgevla_sam_real"
 swanlab_run: "real_zed_dobot_bs4_lr5e-5_20251011"
-log_dir: "/robot/robot-research-exp-0/user/lpy/BridgeVLA_sam/data/bridgevla_data/logs_real"
+log_dir: "/DATA/disk1/zyz/projects/BridgeVLA_sam/data/bridgevla_data/logs_real"
 
 peract:
   lr: 5e-5
