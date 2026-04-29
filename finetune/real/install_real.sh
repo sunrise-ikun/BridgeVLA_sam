@@ -47,11 +47,11 @@ fi
 
 # --- Optional: PyPI mirror (Tsinghua) ---
 # Uncomment the following block if you are in mainland China.
-# pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
-# pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-# pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
-# export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-# export PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+export PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
 # --- Optional: PyTorch index (for mainland China) ---
 # TORCH_INDEX_URL="https://mirror.sjtu.edu.cn/pytorch-wheels/cu124"
