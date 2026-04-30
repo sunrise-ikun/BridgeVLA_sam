@@ -154,6 +154,15 @@ def group_samples_by_episode(dataset: Real_Dataset) -> dict:
     return dict(by_ep)
 
 
+def group_episodes_by_task(by_ep: dict) -> dict:
+    """Further group episode paths by task_group (parent-directory name)."""
+    by_task: defaultdict = defaultdict(list)
+    for ep_path in by_ep:
+        task_group = os.path.basename(os.path.dirname(ep_path))
+        by_task[task_group].append(ep_path)
+    return dict(by_task)
+
+
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -171,7 +180,9 @@ def main():
         default="/DATA/disk1/zyz/projects/BridgeVLA_sam/"
                 "data/bridgevla_data/Real",
     )
-    parser.add_argument("--num_episodes", type=int, default=3)
+    parser.add_argument("--num_episodes", type=int, default=2,
+                        help="Number of episodes to sample **per task**. "
+                             "Total episodes = num_tasks × num_episodes.")
     parser.add_argument(
         "--output_dir", type=str, default="",
         help="Where to write episode directories. Defaults to "
@@ -223,7 +234,7 @@ def main():
     print(f"[debug_eval] mvt_cfg:     {mvt_cfg_path}")
     print(f"[debug_eval] output_dir:  {args.output_dir}")
     print(f"[debug_eval] data_folder: {args.data_folder}")
-    print(f"[debug_eval] num_episodes={args.num_episodes}, stages={args.stages}, seed={args.seed}")
+    print(f"[debug_eval] num_episodes={args.num_episodes} per task, stages={args.stages}, seed={args.seed}")
 
     torch.cuda.set_device(args.device)
 
@@ -236,31 +247,39 @@ def main():
     dataset = Real_Dataset(args.data_folder, cameras=CAMERAS_REAL,
                            tasks=tasks_filter, verbose=True)
 
-    # --- pick episodes ---
+    # --- pick episodes: num_episodes per task ---
     by_ep = group_samples_by_episode(dataset)
-    ep_paths = sorted(by_ep.keys())
-    assert len(ep_paths) > 0, "dataset has no episodes"
+    by_task = group_episodes_by_task(by_ep)
+    assert len(by_task) > 0, "dataset has no episodes"
     rng = np.random.default_rng(args.seed)
-    n_pick = min(args.num_episodes, len(ep_paths))
-    chosen_idx = rng.choice(len(ep_paths), size=n_pick, replace=False).tolist()
-    chosen = [ep_paths[i] for i in chosen_idx]
+
+    # chosen: list of (task_group, ep_path)
+    chosen = []
+    for task_group in sorted(by_task.keys()):
+        eps = sorted(by_task[task_group])
+        n_pick_task = min(args.num_episodes, len(eps))
+        idxs = rng.choice(len(eps), size=n_pick_task, replace=False).tolist()
+        for i in idxs:
+            chosen.append((task_group, eps[i]))
+    n_pick = len(chosen)
 
     run_meta_path = os.path.join(args.output_dir, "run_meta.txt")
     with open(run_meta_path, "w") as f:
         f.write(f"checkpoint: {ckpt_path}\n")
         f.write(f"data_folder: {args.data_folder}\n")
         f.write(f"seed: {args.seed}\n")
-        f.write(f"num_episodes_requested: {args.num_episodes}\n")
-        f.write(f"num_episodes_used: {n_pick}\n")
+        f.write(f"num_episodes_per_task: {args.num_episodes}\n")
+        f.write(f"num_tasks: {len(by_task)}\n")
+        f.write(f"num_episodes_total: {n_pick}\n")
         f.write(f"stages: {args.stages}\n")
         f.write("episodes:\n")
-        for ep in chosen:
-            f.write(f"  - {ep}\n")
+        for tg, ep in chosen:
+            f.write(f"  - [{tg}] {ep}\n")
 
     # --- per-episode visualization ---
-    for ep_i, ep_path in enumerate(chosen):
+    for ep_i, (task_group, ep_path) in enumerate(chosen):
         ep_name = os.path.basename(ep_path)
-        ep_dir = os.path.join(args.output_dir, f"ep_{ep_i:02d}_{ep_name}")
+        ep_dir = os.path.join(args.output_dir, f"ep_{ep_i:02d}_{task_group}_{ep_name}")
         os.makedirs(ep_dir, exist_ok=True)
 
         step_pairs: List = by_ep[ep_path]  # list of (dataset_idx, step_idx)
