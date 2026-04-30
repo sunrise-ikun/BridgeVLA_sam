@@ -40,8 +40,8 @@ DEVICE           = "cuda:0"
 
 # Language instruction for the current task
 #INSTRUCTION = "put the wolf in the upper drawer"
-INSTRUCTION = "put the Redbull in the top shelf"
-
+#INSTRUCTION = "put the Redbull in the top shelf"
+INSTRUCTION = "put the wolf in the bottom drawer"
 
 # Safety clipping ranges (metres, base frame)
 Y_RANGE = (-0.6, 0.3)
