@@ -11,6 +11,8 @@ finetune/Colosseum/train/
 finetune/Colosseum/wandb/
 finetune/GemBench/train/
 finetune/GemBench/wandb/
+finetune/real/logs/
+finetune/real/logs_real/
 wandb/
 *.log
 
