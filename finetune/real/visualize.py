@@ -136,6 +136,9 @@ def _run_viz_forward(
             with_mean_or_bounds=agent._place_with_mean,
             scene_bounds=None if agent._place_with_mean else agent.scene_bounds,
         )
+        if getattr(agent, "align_real_frame", False):
+            a = a.clone()
+            a[..., 0:2] = -a[..., 0:2]
         wpt_local_list.append(a.unsqueeze(0))
     wpt_local = torch.cat(wpt_local_list, dim=0)
 
@@ -144,6 +147,10 @@ def _run_viz_forward(
         with_mean_or_bounds=agent._place_with_mean,
         scene_bounds=None if agent._place_with_mean else agent.scene_bounds,
     )[0] for _pc in pc]
+    if getattr(agent, "align_real_frame", False):
+        pc = [_pc.clone() for _pc in pc]
+        for _pc in pc:
+            _pc[..., 0:2] = -_pc[..., 0:2]
 
     bs = len(pc)
     nc = agent._net_mod.num_img

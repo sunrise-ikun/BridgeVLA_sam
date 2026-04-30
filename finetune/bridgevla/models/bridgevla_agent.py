@@ -452,6 +452,7 @@ class RVTAgent:
         rot_ver: int = 0,
         rot_x_y_aug: int = 2,
         log_dir="",
+        align_real_frame: bool = False,
     ):
         self._network = network
         self._num_rotation_classes = num_rotation_classes
@@ -484,6 +485,7 @@ class RVTAgent:
         self.move_pc_in_bound = move_pc_in_bound
         self.rot_ver = rot_ver
         self.rot_x_y_aug = rot_x_y_aug
+        self.align_real_frame = align_real_frame
 
         self._cross_entropy_loss = nn.CrossEntropyLoss(reduction="none")
         if isinstance(self._network, DistributedDataParallel):
@@ -907,6 +909,10 @@ class RVTAgent:
             
             # TODO: vectorize
             action_rot = action_rot.cpu().numpy()
+            if self.align_real_frame:
+                _Rz180 = Rotation.from_euler('z', 180, degrees=True)
+                for i in range(len(action_rot)):
+                    action_rot[i] = (_Rz180 * Rotation.from_quat(action_rot[i])).as_quat()
             for i, _action_rot in enumerate(action_rot):
                 _action_rot = aug_utils.normalize_quaternion(_action_rot)
                 if _action_rot[-1] < 0:
@@ -941,6 +947,11 @@ class RVTAgent:
                 )[0]
                 for _pc in pc
             ]
+
+            if self.align_real_frame:
+                wpt_local[..., 0:2] = -wpt_local[..., 0:2]
+                for _pc in pc:
+                    _pc[..., 0:2] = -_pc[..., 0:2]
 
             bs = len(pc)
             nc = self._net_mod.num_img

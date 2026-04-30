@@ -62,6 +62,7 @@ class MVT(nn.Module):
         renderer_device,
         load_pretrain=False,
         pretrain_path=None,
+        flip_top_up=False,
     ):
         super().__init__()
 
@@ -84,6 +85,7 @@ class MVT(nn.Module):
         del args["st_wpt_loc_aug"]
         del args["st_wpt_loc_inp_no_noise"]
         del args["img_aug_2"]
+        del args["flip_top_up"]
 
         self.rot_ver = rot_ver
         self.num_rot = num_rot
@@ -102,6 +104,7 @@ class MVT(nn.Module):
             img_size=(img_size, img_size),
             three_views=rend_three_views,
             with_depth=add_depth,
+            flip_top_up=flip_top_up,
         )
         self.num_img = self.renderer.num_img
         self.img_size = img_size

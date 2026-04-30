@@ -35,6 +35,18 @@ REAL_SCENE_BOUNDS = [
 REAL_CAMERAS = ["3rd"]
 
 
+def _align_real_frame_local(x):
+    y = x.clone()
+    y[..., 0:2] = -y[..., 0:2]
+    return y
+
+
+def _align_real_frame_rev_trans(rev_trans):
+    def _rev_trans(x):
+        return rev_trans(_align_real_frame_local(x))
+    return _rev_trans
+
+
 # ---------------------------------------------------------------------------
 # Preprocessing helper (real robot observation → model input)
 # ---------------------------------------------------------------------------
@@ -314,6 +326,8 @@ class RVTAgent:
                 with_mean_or_bounds=self._place_with_mean,
                 scene_bounds=None if self._place_with_mean else self.scene_bounds,
             )
+            a = _align_real_frame_local(a)
+            b = _align_real_frame_rev_trans(b)
             pc_new.append(a)
             rev_trans.append(b)
         pc = pc_new
@@ -343,6 +357,11 @@ class RVTAgent:
         pred_wpt, pred_rot_quat, pred_grip, pred_coll = self.get_pred(
             out, rot_q, grip_q, collision_q, y_q, rev_trans, dyn_cam_info
         )
+
+        # Un-rotate predicted quaternion from aligned frame back to real-robot frame
+        _Rz180 = Rotation.from_euler('z', 180, degrees=True)
+        for i in range(len(pred_rot_quat)):
+            pred_rot_quat[i] = (_Rz180 * Rotation.from_quat(pred_rot_quat[i])).as_quat()
 
         result = (
             pred_wpt[0].cpu().numpy(),

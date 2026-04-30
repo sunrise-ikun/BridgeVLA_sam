@@ -31,6 +31,7 @@ class RVTBoxRenderer():
         two_views=False,
         one_view=False,
         add_3p=False,
+        flip_top_up=False,
         **kwargs):
 
         self.renderer = PointRenderer(device=device, perf_timer=perf_timer)
@@ -55,6 +56,7 @@ class RVTBoxRenderer():
             two_views=two_views,
             one_view=one_view,
             add_3p=add_3p,
+            flip_top_up=flip_top_up,
         )
         self.cameras = self.cameras.to(device)
 
@@ -84,9 +86,11 @@ class RVTBoxRenderer():
         two_views,
         one_view,
         add_3p,
+        flip_top_up=False,
     ):
+        top_up = [0, -1, 0] if flip_top_up else [0, 1, 0]
         cam_dict = {
-            "top": {"eye": [0, 0, 1], "at": [0, 0, 0], "up": [0, 1, 0]},
+            "top": {"eye": [0, 0, 1], "at": [0, 0, 0], "up": top_up},
             "front": {"eye": [1, 0, 0], "at": [0, 0, 0], "up": [0, 0, 1]},
             "down": {"eye": [0, 0, -1], "at": [0, 0, 0], "up": [0, 1, 0]},
             "back": {"eye": [-1, 0, 0], "at": [0, 0, 0], "up": [0, 0, 1]},

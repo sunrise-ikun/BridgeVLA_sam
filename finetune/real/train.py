@@ -306,6 +306,7 @@ def experiment(cmd_args):
         scene_bounds=SCENE_BOUNDS_REAL,
         cameras=CAMERAS_REAL,
         log_dir=f"{log_dir}/test_run/",
+        align_real_frame=True,
         warmup_steps=int(getattr(exp_cfg, "warmup_steps", 300)),
         **exp_cfg.peract,
         **exp_cfg.rvt,

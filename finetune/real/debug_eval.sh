@@ -22,7 +22,7 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 
-DEFAULT_CKPT="${REAL_EVAL_CHECKPOINT:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs_real/train/real_zed_dobot_bs4_lr5e-5_20251011_04_29_20_34/model_80.pth}"
+DEFAULT_CKPT="${REAL_EVAL_CHECKPOINT:-${BRIDGEVLA_ROOT}/data/bridgevla_data/logs_real/train/real_zed_dobot_bs4_lr5e-5_20251011_04_29_20_34/model_110.pth}"
 CKPT_ARGS=()
 if [[ " $* " != *" --checkpoint "* ]]; then
     CKPT_ARGS+=(--checkpoint "${DEFAULT_CKPT}")

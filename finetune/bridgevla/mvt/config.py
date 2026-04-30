@@ -31,6 +31,7 @@ _C.st_sca = 4
 _C.st_wpt_loc_aug = 0.05
 _C.st_wpt_loc_inp_no_noise = False
 _C.img_aug_2 = 0.0
+_C.flip_top_up = False
 
 
 def get_cfg_defaults():
