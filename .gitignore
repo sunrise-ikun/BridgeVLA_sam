@@ -1,5 +1,5 @@
 # ===== Large assets / data / sim binaries =====
-data/
+/data/
 finetune/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04/
 finetune/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
 
